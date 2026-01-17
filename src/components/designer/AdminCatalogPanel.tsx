@@ -1,19 +1,19 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Plus, Trash2, Save, Package, Loader2, Image as ImageIcon, ChevronDown, ChevronUp, Pencil, Upload, Palette } from "lucide-react";
+import { Plus, Trash2, Save, Package, Loader2, Image as ImageIcon, ChevronDown, ChevronUp, Pencil, Upload, Palette, Send } from "lucide-react";
 import { AdminViewEditor } from "./AdminViewEditor";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 interface ProductColor {
   id: string;
@@ -98,6 +98,7 @@ function ProductsTab() {
     DEFAULT_VIEWS.map(v => ({ ...v, mockup_image_url: "" }))
   );
   const [uploadingViewIndex, setUploadingViewIndex] = useState<number | null>(null);
+  const [autoExpandProductId, setAutoExpandProductId] = useState<string | null>(null);
 
   // Fetch all products (including inactive for admin)
   const { data: products, isLoading } = useQuery({
@@ -148,12 +149,14 @@ function ProductsTab() {
 
       return product;
     },
-    onSuccess: () => {
+    onSuccess: (product) => {
       queryClient.invalidateQueries({ queryKey: ["admin-products"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
-      toast.success("Ürün oluşturuldu");
+      toast.success("Ürün oluşturuldu - Şimdi görünümleri düzenleyin");
       resetForm();
       setIsAddDialogOpen(false);
+      // Auto-expand the newly created product
+      setAutoExpandProductId(product.id);
     },
     onError: (error) => {
       toast.error("Ürün oluşturulamadı: " + error.message);
@@ -186,8 +189,13 @@ function ProductsTab() {
         .eq("id", productId);
 
       if (error) throw error;
+      return productId;
     },
-    onSuccess: () => {
+    onSuccess: (deletedProductId) => {
+      // Optimistic update - immediately remove from list
+      queryClient.setQueryData(['admin-products'], (old: Product[] | undefined) => 
+        old?.filter(p => p.id !== deletedProductId)
+      );
       queryClient.invalidateQueries({ queryKey: ["admin-products"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("Ürün silindi");
@@ -252,9 +260,8 @@ function ProductsTab() {
     <div className="h-full flex flex-col">
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogTrigger asChild>
-          <Button size="sm" className="w-full mb-4">
-            <Plus className="w-4 h-4 mr-1" />
-            Yeni Ürün Ekle
+          <Button size="icon" className="mb-4" title="Yeni Ürün Ekle">
+            <Plus className="w-4 h-4" />
           </Button>
         </DialogTrigger>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -413,6 +420,8 @@ function ProductsTab() {
                 product={product}
                 onToggle={(isActive) => toggleProductMutation.mutate({ productId: product.id, isActive })}
                 onDelete={() => deleteProductMutation.mutate(product.id)}
+                autoExpand={product.id === autoExpandProductId}
+                onAutoExpandComplete={() => setAutoExpandProductId(null)}
               />
             ))}
             
@@ -433,9 +442,11 @@ interface ProductItemAdminProps {
   product: Product;
   onToggle: (isActive: boolean) => void;
   onDelete: () => void;
+  autoExpand?: boolean;
+  onAutoExpandComplete?: () => void;
 }
 
-function ProductItemAdmin({ product, onToggle, onDelete }: ProductItemAdminProps) {
+function ProductItemAdmin({ product, onToggle, onDelete, autoExpand, onAutoExpandComplete }: ProductItemAdminProps) {
   const queryClient = useQueryClient();
   const [isExpanded, setIsExpanded] = useState(false);
   const [views, setViews] = useState<ProductView[]>([]);
@@ -445,7 +456,6 @@ function ProductItemAdmin({ product, onToggle, onDelete }: ProductItemAdminProps
   const editorView = views.find(v => v.id === editorViewId);
 
   const loadViews = async () => {
-    if (views.length > 0) return;
     setIsLoadingViews(true);
     const { data, error } = await supabase
       .from("product_views")
@@ -455,9 +465,22 @@ function ProductItemAdmin({ product, onToggle, onDelete }: ProductItemAdminProps
     
     if (data && !error) {
       setViews(data);
+      // If auto-expand is triggered, open the first view editor
+      if (autoExpand && data.length > 0) {
+        setEditorViewId(data[0].id);
+        onAutoExpandComplete?.();
+      }
     }
     setIsLoadingViews(false);
   };
+
+  // Handle auto-expand when product is newly created
+  useEffect(() => {
+    if (autoExpand && !isExpanded) {
+      setIsExpanded(true);
+      loadViews();
+    }
+  }, [autoExpand]);
 
 
   return (
@@ -483,11 +506,18 @@ function ProductItemAdmin({ product, onToggle, onDelete }: ProductItemAdminProps
         </div>
         
         <div className="flex items-center gap-2">
-          <Switch
-            checked={product.is_active}
-            onCheckedChange={onToggle}
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn("h-8 w-8", product.is_active && "text-green-500")}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle(!product.is_active);
+            }}
             title={product.is_active ? "Yayından Kaldır" : "Yayınla"}
-          />
+          >
+            <Send className="w-4 h-4" />
+          </Button>
           <Button
             variant="ghost"
             size="icon"
@@ -727,10 +757,15 @@ function ColorsTab() {
                 </div>
                 
                 <div className="flex items-center gap-2">
-                  <Switch
-                    checked={color.is_active}
-                    onCheckedChange={(isActive) => toggleColorMutation.mutate({ colorId: color.id, isActive })}
-                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn("h-8 w-8", color.is_active && "text-green-500")}
+                    onClick={() => toggleColorMutation.mutate({ colorId: color.id, isActive: !color.is_active })}
+                    title={color.is_active ? "Devre Dışı Bırak" : "Aktifleştir"}
+                  >
+                    <Send className="w-4 h-4" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
