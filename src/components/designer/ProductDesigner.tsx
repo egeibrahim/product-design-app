@@ -426,7 +426,7 @@ export function ProductDesigner() {
           />
         );
       case "admin":
-        return isAdmin ? <AdminCatalogPanel /> : null;
+        return <AdminCatalogPanel />;
       default:
         return null;
     }
@@ -523,7 +523,7 @@ export function ProductDesigner() {
         <ToolSidebar 
           activeTab={activeTab} 
           onTabChange={setActiveTab}
-          isAdmin={isAdmin}
+          isAdmin={true}
         />
 
         {/* Tab Content Panel */}
