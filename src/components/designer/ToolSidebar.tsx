@@ -1,4 +1,4 @@
-import { Eye, Image, Type, Package, Bookmark, Upload, Layers } from "lucide-react";
+import { Eye, Image, Type, Package, Bookmark, Upload, Layers, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ActiveTab } from "./types";
@@ -6,6 +6,7 @@ import { ActiveTab } from "./types";
 interface ToolSidebarProps {
   activeTab: ActiveTab;
   onTabChange: (tab: ActiveTab) => void;
+  isAdmin?: boolean;
 }
 
 const tabs = [
@@ -18,26 +19,38 @@ const tabs = [
   { id: "layers" as const, icon: Layers, label: "Layers" },
 ];
 
-export function ToolSidebar({ activeTab, onTabChange }: ToolSidebarProps) {
+const adminTabs = [
+  { id: "admin" as const, icon: Settings, label: "Admin Panel" },
+];
+
+export function ToolSidebar({ activeTab, onTabChange, isAdmin }: ToolSidebarProps) {
+  const allTabs = isAdmin ? [...tabs, ...adminTabs] : tabs;
+
   return (
     <aside className="w-16 bg-card border-r border-border flex flex-col items-center py-4 gap-1">
       <TooltipProvider delayDuration={200}>
-        {tabs.map((tab) => (
-          <Tooltip key={tab.id}>
-            <TooltipTrigger asChild>
-              <Button
-                variant={activeTab === tab.id ? "secondary" : "ghost"}
-                size="icon"
-                className="w-12 h-12"
-                onClick={() => onTabChange(tab.id)}
-              >
-                <tab.icon className="w-5 h-5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <p>{tab.label}</p>
-            </TooltipContent>
-          </Tooltip>
+        {allTabs.map((tab, index) => (
+          <div key={tab.id}>
+            {/* Add separator before admin tabs */}
+            {isAdmin && tab.id === "admin" && (
+              <div className="w-10 h-px bg-border my-2" />
+            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={activeTab === tab.id ? "secondary" : "ghost"}
+                  size="icon"
+                  className={`w-12 h-12 ${tab.id === "admin" ? "text-amber-500" : ""}`}
+                  onClick={() => onTabChange(tab.id)}
+                >
+                  <tab.icon className="w-5 h-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>{tab.label}</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
         ))}
       </TooltipProvider>
     </aside>
