@@ -89,7 +89,7 @@ export function ProductDesigner() {
   }, [currentViewId]);
 
   // Switch view
-  const handleViewChange = useCallback((viewId: string) => {
+  const handleViewChange = useCallback(async (viewId: string) => {
     // Save current elements to current view
     if (currentViewId) {
       setDesignsByView(prev => ({
@@ -103,7 +103,24 @@ export function ProductDesigner() {
     const viewElements = designsByView[viewId] || [];
     resetElements(viewElements);
     setSelectedElementId(null);
-  }, [currentViewId, elements, designsByView, resetElements]);
+    
+    // Fetch color-specific mockup for new view if color is selected
+    if (selectedColorId) {
+      const { data } = await supabase
+        .from("product_view_color_mockups")
+        .select("mockup_image_url")
+        .eq("product_view_id", viewId)
+        .eq("color_id", selectedColorId)
+        .maybeSingle();
+      
+      if (data?.mockup_image_url) {
+        setColorMockups(prev => ({
+          ...prev,
+          [`${viewId}-${selectedColorId}`]: data.mockup_image_url
+        }));
+      }
+    }
+  }, [currentViewId, elements, designsByView, resetElements, selectedColorId]);
 
   // Save current view elements when they change
   useEffect(() => {
