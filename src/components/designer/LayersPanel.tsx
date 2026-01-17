@@ -29,7 +29,7 @@ export function LayersPanel({
   };
 
   return (
-    <aside className="w-64 bg-card border-r border-border flex flex-col">
+    <div className="flex flex-col h-full">
       <Tabs defaultValue="layers" className="flex-1 flex flex-col">
         <TabsList className="w-full grid grid-cols-2 m-2 mr-4">
           <TabsTrigger value="layers" className="text-xs">Layers</TabsTrigger>
@@ -43,7 +43,7 @@ export function LayersPanel({
             <h3 className="text-sm font-medium">Layers</h3>
             <p className="text-xs text-muted-foreground">{elements.length} elements</p>
           </div>
-          <ScrollArea className="flex-1 h-[calc(100vh-200px)]">
+          <ScrollArea className="h-[calc(100vh-250px)]">
             <div className="p-2 space-y-1">
               {[...elements].reverse().map((element) => {
                 const isSelected = selectedElement === element.id;
@@ -122,6 +122,6 @@ export function LayersPanel({
           <AttributesPanel element={selectedElementData} onUpdate={handleUpdateSelected} />
         </TabsContent>
       </Tabs>
-    </aside>
+    </div>
   );
 }
