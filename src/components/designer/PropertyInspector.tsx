@@ -1,4 +1,4 @@
-import { Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Trash2 } from "lucide-react";
+import { Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Trash2, RotateCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -50,6 +50,22 @@ export function PropertyInspector({ selectedElement, onUpdateElement, onDeleteEl
       </aside>
     );
   }
+
+  const getStyleValues = () => {
+    const values: string[] = [];
+    if (selectedElement.fontWeight === "bold") values.push("bold");
+    if (selectedElement.fontStyle === "italic") values.push("italic");
+    if (selectedElement.textDecoration === "underline") values.push("underline");
+    return values;
+  };
+
+  const handleStyleChange = (values: string[]) => {
+    onUpdateElement(selectedElement.id, {
+      fontWeight: values.includes("bold") ? "bold" : "normal",
+      fontStyle: values.includes("italic") ? "italic" : "normal",
+      textDecoration: values.includes("underline") ? "underline" : "none",
+    });
+  };
 
   return (
     <aside className="w-72 bg-inspector-bg border-l border-border flex flex-col animate-fade-in">
@@ -149,7 +165,12 @@ export function PropertyInspector({ selectedElement, onUpdateElement, onDeleteEl
 
             <div className="property-section">
               <Label className="property-label">Style</Label>
-              <ToggleGroup type="multiple" className="justify-start">
+              <ToggleGroup 
+                type="multiple" 
+                className="justify-start"
+                value={getStyleValues()}
+                onValueChange={handleStyleChange}
+              >
                 <ToggleGroupItem value="bold" aria-label="Bold" className="h-9 w-9">
                   <Bold className="w-4 h-4" />
                 </ToggleGroupItem>
@@ -164,7 +185,12 @@ export function PropertyInspector({ selectedElement, onUpdateElement, onDeleteEl
 
             <div className="property-section">
               <Label className="property-label">Alignment</Label>
-              <ToggleGroup type="single" defaultValue="center" className="justify-start">
+              <ToggleGroup 
+                type="single" 
+                value={selectedElement.textAlign || "center"} 
+                onValueChange={(value) => value && onUpdateElement(selectedElement.id, { textAlign: value as "left" | "center" | "right" })}
+                className="justify-start"
+              >
                 <ToggleGroupItem value="left" aria-label="Align Left" className="h-9 w-9">
                   <AlignLeft className="w-4 h-4" />
                 </ToggleGroupItem>
@@ -207,6 +233,38 @@ export function PropertyInspector({ selectedElement, onUpdateElement, onDeleteEl
             </div>
           </>
         )}
+
+        {/* Rotation Section */}
+        <div className="property-section">
+          <Label className="property-label flex items-center gap-2">
+            <RotateCw className="w-4 h-4" />
+            Rotation
+          </Label>
+          <div className="flex items-center gap-3">
+            <Slider
+              value={[selectedElement.rotation || 0]}
+              min={-180}
+              max={180}
+              step={1}
+              onValueChange={([value]) => onUpdateElement(selectedElement.id, { rotation: value })}
+              className="flex-1"
+            />
+            <Input
+              type="number"
+              value={selectedElement.rotation || 0}
+              onChange={(e) => onUpdateElement(selectedElement.id, { rotation: parseInt(e.target.value) || 0 })}
+              className="w-16 h-9 text-center"
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2 w-full"
+            onClick={() => onUpdateElement(selectedElement.id, { rotation: 0 })}
+          >
+            Reset Rotation
+          </Button>
+        </div>
 
         {/* Position Section */}
         <div className="property-section">
