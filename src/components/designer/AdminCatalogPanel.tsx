@@ -7,7 +7,7 @@ import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Plus, Trash2, Save, Package, Loader2, Image as ImageIcon, ChevronDown, ChevronUp, Pencil, Upload, Palette, Send } from "lucide-react";
+import { Plus, Trash2, Save, Package, Loader2, Pencil, Upload, Palette, Send } from "lucide-react";
 import { AdminViewEditor } from "./AdminViewEditor";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -447,15 +447,11 @@ interface ProductItemAdminProps {
 }
 
 function ProductItemAdmin({ product, onToggle, onDelete, autoExpand, onAutoExpandComplete }: ProductItemAdminProps) {
-  const queryClient = useQueryClient();
-  const [isExpanded, setIsExpanded] = useState(false);
   const [views, setViews] = useState<ProductView[]>([]);
   const [isLoadingViews, setIsLoadingViews] = useState(false);
-  const [editorViewId, setEditorViewId] = useState<string | null>(null);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
 
-  const editorView = views.find(v => v.id === editorViewId);
-
-  const loadViews = async () => {
+  const loadViews = async (openEditor = false) => {
     setIsLoadingViews(true);
     const { data, error } = await supabase
       .from("product_views")
@@ -465,10 +461,8 @@ function ProductItemAdmin({ product, onToggle, onDelete, autoExpand, onAutoExpan
     
     if (data && !error) {
       setViews(data);
-      // If auto-expand is triggered, open the first view editor
-      if (autoExpand && data.length > 0) {
-        setEditorViewId(data[0].id);
-        onAutoExpandComplete?.();
+      if (openEditor) {
+        setIsEditorOpen(true);
       }
     }
     setIsLoadingViews(false);
@@ -476,115 +470,82 @@ function ProductItemAdmin({ product, onToggle, onDelete, autoExpand, onAutoExpan
 
   // Handle auto-expand when product is newly created
   useEffect(() => {
-    if (autoExpand && !isExpanded) {
-      setIsExpanded(true);
-      loadViews();
+    if (autoExpand) {
+      loadViews(true);
+      onAutoExpandComplete?.();
     }
   }, [autoExpand]);
 
+  const handleOpenEditor = () => {
+    if (views.length > 0) {
+      setIsEditorOpen(true);
+    } else {
+      loadViews(true);
+    }
+  };
 
   return (
-    <div className="border rounded-lg">
-      <div className="p-3 flex items-center justify-between">
-        <div 
-          className="flex-1 cursor-pointer"
-          onClick={() => {
-            setIsExpanded(!isExpanded);
-            if (!isExpanded) loadViews();
-          }}
-        >
-          <div className="flex items-center gap-2">
-            <p className="font-medium text-sm">{product.name}</p>
-            <Badge variant={product.is_active ? "default" : "secondary"} className="text-xs">
-              {product.is_active ? "Yayında" : "Taslak"}
-            </Badge>
-            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </div>
-          {product.category && (
-            <p className="text-xs text-muted-foreground">{product.category}</p>
-          )}
-        </div>
-        
+    <div className="border rounded-lg p-3 flex items-center justify-between">
+      <div className="flex-1">
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn("h-8 w-8", product.is_active && "text-green-500")}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggle(!product.is_active);
-            }}
-            title={product.is_active ? "Yayından Kaldır" : "Yayınla"}
-          >
-            <Send className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-destructive"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
+          <p className="font-medium text-sm">{product.name}</p>
+          <Badge variant={product.is_active ? "default" : "secondary"} className="text-xs">
+            {product.is_active ? "Yayında" : "Taslak"}
+          </Badge>
         </div>
+        {product.category && (
+          <p className="text-xs text-muted-foreground">{product.category}</p>
+        )}
       </div>
       
-      {isExpanded && (
-        <div className="border-t p-3 space-y-3">
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleOpenEditor}
+          disabled={isLoadingViews}
+        >
           {isLoadingViews ? (
-            <div className="flex justify-center py-4">
-              <Loader2 className="w-5 h-5 animate-spin" />
-            </div>
+            <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
-            <div className="space-y-2">
-              {views.map((view) => (
-                <div 
-                  key={view.id} 
-                  className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  {view.mockup_image_url ? (
-                    <img src={view.mockup_image_url} alt="" className="w-12 h-12 object-cover rounded" />
-                  ) : (
-                    <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
-                      <ImageIcon className="w-5 h-5 text-muted-foreground" />
-                    </div>
-                  )}
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{view.view_name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {view.mockup_image_url ? "Mockup yüklendi" : "Mockup bekleniyor"}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setEditorViewId(view.id)}
-                  >
-                    <Pencil className="w-4 h-4 mr-1" />
-                    Düzenle
-                  </Button>
-                </div>
-              ))}
-            </div>
+            <>
+              <Pencil className="w-4 h-4 mr-1" />
+              Düzenle
+            </>
           )}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn("h-8 w-8", product.is_active && "text-green-500")}
+          onClick={() => onToggle(!product.is_active)}
+          title={product.is_active ? "Yayından Kaldır" : "Yayınla"}
+        >
+          <Send className="w-4 h-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-destructive"
+          onClick={onDelete}
+        >
+          <Trash2 className="w-4 h-4" />
+        </Button>
+      </div>
 
-          {/* View Editor Dialog */}
-          {editorView && (
-            <AdminViewEditor
-              view={editorView}
-              isOpen={!!editorViewId}
-              onClose={() => setEditorViewId(null)}
-              onUpdate={(updates) => {
-                setViews(prev => prev.map(v => 
-                  v.id === editorViewId ? { ...v, ...updates } : v
-                ));
-              }}
-            />
-          )}
-        </div>
+      {/* View Editor Dialog - All views in one popup */}
+      {views.length > 0 && (
+        <AdminViewEditor
+          views={views}
+          initialViewId={views[0]?.id}
+          isOpen={isEditorOpen}
+          onClose={() => setIsEditorOpen(false)}
+          onUpdate={(viewId, updates) => {
+            setViews(prev => prev.map(v => 
+              v.id === viewId ? { ...v, ...updates } : v
+            ));
+          }}
+        />
       )}
     </div>
   );

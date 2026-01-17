@@ -1,13 +1,14 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, Save, Upload, Move, Maximize } from "lucide-react";
+import { Loader2, Save, Upload, Move, Maximize, Image as ImageIcon, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { cn } from "@/lib/utils";
 
 interface ProductView {
   id: string;
@@ -22,15 +23,17 @@ interface ProductView {
 }
 
 interface AdminViewEditorProps {
-  view: ProductView;
+  views: ProductView[];
+  initialViewId?: string;
   isOpen: boolean;
   onClose: () => void;
-  onUpdate: (updates: Partial<ProductView>) => void;
+  onUpdate: (viewId: string, updates: Partial<ProductView>) => void;
 }
 
-export function AdminViewEditor({ view, isOpen, onClose, onUpdate }: AdminViewEditorProps) {
+export function AdminViewEditor({ views, initialViewId, isOpen, onClose, onUpdate }: AdminViewEditorProps) {
   const queryClient = useQueryClient();
-  const [localView, setLocalView] = useState<ProductView>(view);
+  const [activeViewId, setActiveViewId] = useState<string>(initialViewId || views[0]?.id || "");
+  const [localViews, setLocalViews] = useState<ProductView[]>(views);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -38,28 +41,58 @@ export function AdminViewEditor({ view, isOpen, onClose, onUpdate }: AdminViewEd
   const dragStartRef = useRef({ x: 0, y: 0, top: 0, left: 0 });
   const resizeStartRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
 
+  // Reset state when dialog opens with new views
+  useEffect(() => {
+    if (isOpen) {
+      setLocalViews(views);
+      setActiveViewId(initialViewId || views[0]?.id || "");
+    }
+  }, [isOpen, views, initialViewId]);
+
+  const activeView = localViews.find(v => v.id === activeViewId);
+
   const updateViewMutation = useMutation({
-    mutationFn: async (updates: Partial<ProductView>) => {
+    mutationFn: async (viewToUpdate: ProductView) => {
       const { error } = await supabase
         .from("product_views")
-        .update(updates)
-        .eq("id", view.id);
+        .update({
+          mockup_image_url: viewToUpdate.mockup_image_url,
+          design_area_top: viewToUpdate.design_area_top,
+          design_area_left: viewToUpdate.design_area_left,
+          design_area_width: viewToUpdate.design_area_width,
+          design_area_height: viewToUpdate.design_area_height
+        })
+        .eq("id", viewToUpdate.id);
       
       if (error) throw error;
+      return viewToUpdate;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-products"] });
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      toast.success("Görünüm kaydedildi");
-      onUpdate(localView);
-      onClose();
+    onSuccess: (updatedView) => {
+      onUpdate(updatedView.id, updatedView);
     },
     onError: (error) => {
       toast.error("Kaydetme hatası: " + error.message);
     }
   });
 
+  const handleSaveAll = async () => {
+    try {
+      // Save all views that might have been modified
+      for (const view of localViews) {
+        await updateViewMutation.mutateAsync(view);
+      }
+      queryClient.invalidateQueries({ queryKey: ["admin-products"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      toast.success("Tüm görünümler kaydedildi");
+      onClose();
+    } catch (error) {
+      // Error already handled in mutation
+    }
+  };
+
   const handleImageUpload = async (file: File) => {
+    if (!activeView) return;
+
     const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
     if (!validTypes.includes(file.type)) {
       toast.error("Sadece PNG veya JPG dosyaları yüklenebilir");
@@ -74,7 +107,7 @@ export function AdminViewEditor({ view, isOpen, onClose, onUpdate }: AdminViewEd
     setUploadingImage(true);
     
     const fileExt = file.name.split(".").pop();
-    const fileName = `${Date.now()}-${view.id}.${fileExt}`;
+    const fileName = `${Date.now()}-${activeView.id}.${fileExt}`;
     const filePath = `mockups/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
@@ -91,12 +124,15 @@ export function AdminViewEditor({ view, isOpen, onClose, onUpdate }: AdminViewEd
       .from("product-mockups")
       .getPublicUrl(filePath);
 
-    setLocalView(prev => ({ ...prev, mockup_image_url: publicUrl }));
+    setLocalViews(prev => prev.map(v => 
+      v.id === activeViewId ? { ...v, mockup_image_url: publicUrl } : v
+    ));
     setUploadingImage(false);
     toast.success("Görsel yüklendi");
   };
 
   const handleMouseDown = useCallback((e: React.MouseEvent, type: 'drag' | 'resize') => {
+    if (!activeView) return;
     e.preventDefault();
     e.stopPropagation();
     
@@ -105,83 +141,117 @@ export function AdminViewEditor({ view, isOpen, onClose, onUpdate }: AdminViewEd
       dragStartRef.current = {
         x: e.clientX,
         y: e.clientY,
-        top: localView.design_area_top,
-        left: localView.design_area_left
+        top: activeView.design_area_top,
+        left: activeView.design_area_left
       };
     } else {
       setIsResizing(true);
       resizeStartRef.current = {
         x: e.clientX,
         y: e.clientY,
-        width: localView.design_area_width,
-        height: localView.design_area_height
+        width: activeView.design_area_width,
+        height: activeView.design_area_height
       };
     }
-  }, [localView]);
+  }, [activeView]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !activeView) return;
     const rect = containerRef.current.getBoundingClientRect();
 
     if (isDragging) {
       const deltaX = ((e.clientX - dragStartRef.current.x) / rect.width) * 100;
       const deltaY = ((e.clientY - dragStartRef.current.y) / rect.height) * 100;
       
-      const newLeft = Math.max(0, Math.min(100 - localView.design_area_width, dragStartRef.current.left + deltaX));
-      const newTop = Math.max(0, Math.min(100 - localView.design_area_height, dragStartRef.current.top + deltaY));
+      const newLeft = Math.max(0, Math.min(100 - activeView.design_area_width, dragStartRef.current.left + deltaX));
+      const newTop = Math.max(0, Math.min(100 - activeView.design_area_height, dragStartRef.current.top + deltaY));
       
-      setLocalView(prev => ({
-        ...prev,
-        design_area_left: Math.round(newLeft),
-        design_area_top: Math.round(newTop)
-      }));
+      setLocalViews(prev => prev.map(v => 
+        v.id === activeViewId ? {
+          ...v,
+          design_area_left: Math.round(newLeft),
+          design_area_top: Math.round(newTop)
+        } : v
+      ));
     }
 
     if (isResizing) {
       const deltaX = ((e.clientX - resizeStartRef.current.x) / rect.width) * 100;
       const deltaY = ((e.clientY - resizeStartRef.current.y) / rect.height) * 100;
       
-      const newWidth = Math.max(10, Math.min(100 - localView.design_area_left, resizeStartRef.current.width + deltaX));
-      const newHeight = Math.max(10, Math.min(100 - localView.design_area_top, resizeStartRef.current.height + deltaY));
+      const newWidth = Math.max(10, Math.min(100 - activeView.design_area_left, resizeStartRef.current.width + deltaX));
+      const newHeight = Math.max(10, Math.min(100 - activeView.design_area_top, resizeStartRef.current.height + deltaY));
       
-      setLocalView(prev => ({
-        ...prev,
-        design_area_width: Math.round(newWidth),
-        design_area_height: Math.round(newHeight)
-      }));
+      setLocalViews(prev => prev.map(v => 
+        v.id === activeViewId ? {
+          ...v,
+          design_area_width: Math.round(newWidth),
+          design_area_height: Math.round(newHeight)
+        } : v
+      ));
     }
-  }, [isDragging, isResizing, localView]);
+  }, [isDragging, isResizing, activeView, activeViewId]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
     setIsResizing(false);
   }, []);
 
-  const handleSave = () => {
-    updateViewMutation.mutate({
-      mockup_image_url: localView.mockup_image_url,
-      design_area_top: localView.design_area_top,
-      design_area_left: localView.design_area_left,
-      design_area_width: localView.design_area_width,
-      design_area_height: localView.design_area_height
-    });
+  const updateActiveView = (field: keyof ProductView, value: number) => {
+    setLocalViews(prev => prev.map(v => 
+      v.id === activeViewId ? { ...v, [field]: value } : v
+    ));
   };
+
+  if (!activeView) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{view.view_name} Görünümünü Düzenle</DialogTitle>
+          <DialogTitle>Görünümleri Düzenle</DialogTitle>
           <DialogDescription>
-            Mockup görselini yükleyin ve baskı alanını görsel üzerinde konumlandırın
+            Mockup görsellerini yükleyin ve baskı alanlarını ayarlayın
           </DialogDescription>
         </DialogHeader>
+
+        {/* View Tabs */}
+        <div className="flex items-center gap-2 pb-4 border-b">
+          {localViews.map((view) => (
+            <button
+              key={view.id}
+              onClick={() => setActiveViewId(view.id)}
+              className={cn(
+                "flex flex-col items-center gap-1 p-2 rounded-lg border-2 transition-colors min-w-[80px]",
+                activeViewId === view.id 
+                  ? "border-primary bg-primary/10" 
+                  : "border-transparent hover:bg-muted"
+              )}
+            >
+              {view.mockup_image_url ? (
+                <img 
+                  src={view.mockup_image_url} 
+                  alt={view.view_name} 
+                  className="w-12 h-12 object-cover rounded" 
+                />
+              ) : (
+                <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
+                  <ImageIcon className="w-5 h-5 text-muted-foreground" />
+                </div>
+              )}
+              <span className="text-xs font-medium">{view.view_name}</span>
+              {view.mockup_image_url && (
+                <Check className="w-3 h-3 text-green-500" />
+              )}
+            </button>
+          ))}
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 py-4">
           {/* Visual Editor */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <Label>Mockup Önizleme</Label>
+              <Label>{activeView.view_name} Önizleme</Label>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Move className="w-3 h-3" /> Sürükle
                 <Maximize className="w-3 h-3 ml-2" /> Boyutlandır
@@ -195,9 +265,9 @@ export function AdminViewEditor({ view, isOpen, onClose, onUpdate }: AdminViewEd
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
             >
-              {localView.mockup_image_url ? (
+              {activeView.mockup_image_url ? (
                 <img 
-                  src={localView.mockup_image_url} 
+                  src={activeView.mockup_image_url} 
                   alt="Mockup" 
                   className="w-full h-full object-contain"
                   draggable={false}
@@ -216,10 +286,10 @@ export function AdminViewEditor({ view, isOpen, onClose, onUpdate }: AdminViewEd
               <div
                 className="absolute border-2 border-primary bg-primary/20 cursor-move transition-colors hover:bg-primary/30"
                 style={{
-                  top: `${localView.design_area_top}%`,
-                  left: `${localView.design_area_left}%`,
-                  width: `${localView.design_area_width}%`,
-                  height: `${localView.design_area_height}%`,
+                  top: `${activeView.design_area_top}%`,
+                  left: `${activeView.design_area_left}%`,
+                  width: `${activeView.design_area_width}%`,
+                  height: `${activeView.design_area_height}%`,
                 }}
                 onMouseDown={(e) => handleMouseDown(e, 'drag')}
               >
@@ -265,11 +335,11 @@ export function AdminViewEditor({ view, isOpen, onClose, onUpdate }: AdminViewEd
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <Label className="text-xs">Üst Konum</Label>
-                  <span className="text-xs text-muted-foreground">{localView.design_area_top}%</span>
+                  <span className="text-xs text-muted-foreground">{activeView.design_area_top}%</span>
                 </div>
                 <Slider
-                  value={[localView.design_area_top]}
-                  onValueChange={([val]) => setLocalView(prev => ({ ...prev, design_area_top: val }))}
+                  value={[activeView.design_area_top]}
+                  onValueChange={([val]) => updateActiveView('design_area_top', val)}
                   min={0}
                   max={80}
                   step={1}
@@ -279,11 +349,11 @@ export function AdminViewEditor({ view, isOpen, onClose, onUpdate }: AdminViewEd
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <Label className="text-xs">Sol Konum</Label>
-                  <span className="text-xs text-muted-foreground">{localView.design_area_left}%</span>
+                  <span className="text-xs text-muted-foreground">{activeView.design_area_left}%</span>
                 </div>
                 <Slider
-                  value={[localView.design_area_left]}
-                  onValueChange={([val]) => setLocalView(prev => ({ ...prev, design_area_left: val }))}
+                  value={[activeView.design_area_left]}
+                  onValueChange={([val]) => updateActiveView('design_area_left', val)}
                   min={0}
                   max={80}
                   step={1}
@@ -293,11 +363,11 @@ export function AdminViewEditor({ view, isOpen, onClose, onUpdate }: AdminViewEd
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <Label className="text-xs">Genişlik</Label>
-                  <span className="text-xs text-muted-foreground">{localView.design_area_width}%</span>
+                  <span className="text-xs text-muted-foreground">{activeView.design_area_width}%</span>
                 </div>
                 <Slider
-                  value={[localView.design_area_width]}
-                  onValueChange={([val]) => setLocalView(prev => ({ ...prev, design_area_width: val }))}
+                  value={[activeView.design_area_width]}
+                  onValueChange={([val]) => updateActiveView('design_area_width', val)}
                   min={10}
                   max={100}
                   step={1}
@@ -307,11 +377,11 @@ export function AdminViewEditor({ view, isOpen, onClose, onUpdate }: AdminViewEd
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <Label className="text-xs">Yükseklik</Label>
-                  <span className="text-xs text-muted-foreground">{localView.design_area_height}%</span>
+                  <span className="text-xs text-muted-foreground">{activeView.design_area_height}%</span>
                 </div>
                 <Slider
-                  value={[localView.design_area_height]}
-                  onValueChange={([val]) => setLocalView(prev => ({ ...prev, design_area_height: val }))}
+                  value={[activeView.design_area_height]}
+                  onValueChange={([val]) => updateActiveView('design_area_height', val)}
                   min={10}
                   max={100}
                   step={1}
@@ -325,7 +395,7 @@ export function AdminViewEditor({ view, isOpen, onClose, onUpdate }: AdminViewEd
                 <li>• 2048x2048 piksel kare mockup görseli yükleyin</li>
                 <li>• Baskı alanını sürükleyerek konumlandırın</li>
                 <li>• Sağ alt köşeden boyutlandırın</li>
-                <li>• Slider'lar ile hassas ayar yapın</li>
+                <li>• Üstteki sekmelerden görünümler arası geçiş yapın</li>
               </ul>
             </div>
           </div>
@@ -336,7 +406,7 @@ export function AdminViewEditor({ view, isOpen, onClose, onUpdate }: AdminViewEd
             İptal
           </Button>
           <Button 
-            onClick={handleSave}
+            onClick={handleSaveAll}
             disabled={updateViewMutation.isPending}
           >
             {updateViewMutation.isPending ? (
@@ -347,7 +417,7 @@ export function AdminViewEditor({ view, isOpen, onClose, onUpdate }: AdminViewEd
             ) : (
               <>
                 <Save className="w-4 h-4 mr-2" />
-                Kaydet
+                Tümünü Kaydet
               </>
             )}
           </Button>
