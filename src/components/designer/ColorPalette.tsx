@@ -1,17 +1,26 @@
 import { useRef, useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ColorPickerPopover } from "./ColorPickerPopover";
 import { ProductColor } from "./types";
 import { supabase } from "@/integrations/supabase/client";
 
 interface ColorPaletteProps {
   selectedColorId: string | null;
+  selectedColorIds: string[];
   onColorSelect: (colorId: string, hexCode: string) => void;
+  onColorToggle: (colorId: string, hexCode: string) => void;
   selectedProductId?: string;
 }
 
-export function ColorPalette({ selectedColorId, onColorSelect, selectedProductId }: ColorPaletteProps) {
+export function ColorPalette({ 
+  selectedColorId, 
+  selectedColorIds,
+  onColorSelect, 
+  onColorToggle,
+  selectedProductId 
+}: ColorPaletteProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [colors, setColors] = useState<ProductColor[]>([]);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -87,6 +96,16 @@ export function ColorPalette({ selectedColorId, onColorSelect, selectedProductId
     }
   };
 
+  // Helper to determine if a color is light
+  const isLightColor = (hexCode: string): boolean => {
+    const hex = hexCode.replace("#", "");
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.5;
+  };
+
   if (colors.length === 0) {
     return (
       <div className="flex items-center gap-2 h-full text-sm text-muted-foreground">
@@ -114,24 +133,39 @@ export function ColorPalette({ selectedColorId, onColorSelect, selectedProductId
         onScroll={checkScroll}
       >
         <TooltipProvider delayDuration={200}>
-          {colors.map((color) => (
-            <Tooltip key={color.id}>
-              <TooltipTrigger asChild>
-                <button
-                  className={`w-8 h-8 rounded-full shrink-0 border-2 transition-all hover:scale-110 ${
-                    selectedColorId === color.id
-                      ? "ring-2 ring-offset-2 ring-foreground scale-110 border-foreground"
-                      : "border-border hover:border-foreground/50"
-                  }`}
-                  style={{ backgroundColor: color.hex_code }}
-                  onClick={() => onColorSelect(color.id, color.hex_code)}
-                />
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                <p>{color.name}</p>
-              </TooltipContent>
-            </Tooltip>
-          ))}
+          {colors.map((color) => {
+            const isActive = selectedColorId === color.id;
+            const isSelected = selectedColorIds.includes(color.id);
+            
+            return (
+              <Tooltip key={color.id}>
+                <TooltipTrigger asChild>
+                  <button
+                    className={`relative w-8 h-8 rounded-full shrink-0 border-2 transition-all hover:scale-110 ${
+                      isActive
+                        ? "ring-2 ring-offset-2 ring-primary scale-110 border-primary"
+                        : isSelected
+                        ? "ring-1 ring-offset-1 ring-primary/50 border-primary/50"
+                        : "border-border hover:border-foreground/50"
+                    }`}
+                    style={{ backgroundColor: color.hex_code }}
+                    onClick={() => onColorSelect(color.id, color.hex_code)}
+                  >
+                    {isSelected && (
+                      <Check 
+                        className={`absolute inset-0 m-auto h-4 w-4 ${
+                          isLightColor(color.hex_code) ? "text-foreground" : "text-white"
+                        }`} 
+                      />
+                    )}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>{color.name}</p>
+                </TooltipContent>
+              </Tooltip>
+            );
+          })}
         </TooltipProvider>
       </div>
 
@@ -144,6 +178,13 @@ export function ColorPalette({ selectedColorId, onColorSelect, selectedProductId
       >
         <ChevronRight className="h-4 w-4" />
       </Button>
+
+      {/* Color Picker Popover for multi-select */}
+      <ColorPickerPopover
+        selectedColorIds={selectedColorIds}
+        onColorToggle={onColorToggle}
+        selectedProductId={selectedProductId}
+      />
     </div>
   );
 }
