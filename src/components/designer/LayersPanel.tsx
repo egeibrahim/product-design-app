@@ -29,7 +29,7 @@ export function LayersPanel({
   };
 
   return (
-    <aside className="w-64 bg-card border-l border-border flex flex-col">
+    <aside className="w-64 bg-card border-r border-border flex flex-col">
       <Tabs defaultValue="layers" className="flex-1 flex flex-col">
         <TabsList className="w-full grid grid-cols-2 m-2 mr-4">
           <TabsTrigger value="layers" className="text-xs">Layers</TabsTrigger>
