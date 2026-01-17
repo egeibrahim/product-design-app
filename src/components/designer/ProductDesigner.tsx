@@ -90,22 +90,8 @@ export function ProductDesigner() {
   const [loadDialogOpen, setLoadDialogOpen] = useState(false);
   const [designName, setDesignName] = useState("");
 
-  const { elements, setElements, undo, redo, canUndo, canRedo } = useDesignHistory(initialElements);
-  const { savedDesigns, saveDesign, loadDesign, deleteDesign, autoSave, loadAutoSave } = useDesignPersistence();
-
-  // Load autosave on mount
-  useEffect(() => {
-    const saved = loadAutoSave();
-    if (saved) {
-      setElements(saved.elements);
-      setCurrentProductId(saved.productId);
-    }
-  }, []);
-
-  // Auto-save on changes
-  useEffect(() => {
-    autoSave(elements, currentProductId);
-  }, [elements, currentProductId, autoSave]);
+  const { elements, setElements, resetElements, undo, redo, canUndo, canRedo } = useDesignHistory(initialElements);
+  const { savedDesigns, saveDesign, loadDesign, deleteDesign, autoSave, loadAutoSave, clearStorage } = useDesignPersistence();
 
   const currentProduct = products.find((p) => p.id === currentProductId) || products[0];
   const selectedElement = elements.find((el) => el.id === selectedElementId) || null;
@@ -212,7 +198,7 @@ export function ProductDesigner() {
   const handleLoadDesign = (name: string) => {
     const state = loadDesign(name);
     if (state) {
-      setElements(state.elements);
+      resetElements(state.elements);
       setCurrentProductId(state.productId);
       setSelectedElementId(null);
     }
@@ -308,6 +294,10 @@ export function ProductDesigner() {
                 <FolderOpen className="w-4 h-4 mr-2" />
                 Load Design
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={clearStorage} className="text-destructive">
+                Clear All Saved Data
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -357,7 +347,7 @@ export function ProductDesigner() {
           <DialogHeader>
             <DialogTitle>Save Design</DialogTitle>
             <DialogDescription>
-              Enter a name for your design. You can load it later from the Save menu.
+              Enter a name for your design. Note: Uploaded images are not persisted.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
