@@ -8,7 +8,8 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Plus, Upload, Trash2, Save, Package, Loader2, Eye, EyeOff, Palette, Image as ImageIcon, Edit2, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Trash2, Save, Package, Loader2, Image as ImageIcon, ChevronDown, ChevronUp, Pencil, Upload, Palette } from "lucide-react";
+import { AdminViewEditor } from "./AdminViewEditor";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -439,8 +440,9 @@ function ProductItemAdmin({ product, onToggle, onDelete }: ProductItemAdminProps
   const [isExpanded, setIsExpanded] = useState(false);
   const [views, setViews] = useState<ProductView[]>([]);
   const [isLoadingViews, setIsLoadingViews] = useState(false);
-  const [editingViewId, setEditingViewId] = useState<string | null>(null);
-  const [uploadingViewId, setUploadingViewId] = useState<string | null>(null);
+  const [editorViewId, setEditorViewId] = useState<string | null>(null);
+
+  const editorView = views.find(v => v.id === editorViewId);
 
   const loadViews = async () => {
     if (views.length > 0) return;
@@ -457,83 +459,6 @@ function ProductItemAdmin({ product, onToggle, onDelete }: ProductItemAdminProps
     setIsLoadingViews(false);
   };
 
-  const updateViewMutation = useMutation({
-    mutationFn: async ({ viewId, updates }: { viewId: string; updates: Partial<ProductView> }) => {
-      const { error } = await supabase
-        .from("product_views")
-        .update(updates)
-        .eq("id", viewId);
-      
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-products"] });
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      toast.success("Görünüm güncellendi");
-      setEditingViewId(null);
-    },
-  });
-
-  const handleImageUpload = async (file: File, viewId: string) => {
-    // Validate file type - PNG or JPG only
-    const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
-    if (!validTypes.includes(file.type)) {
-      toast.error("Sadece PNG veya JPG dosyaları yüklenebilir");
-      return;
-    }
-
-    if (file.size > 50 * 1024 * 1024) {
-      toast.error("Dosya boyutu maksimum 50MB olmalıdır");
-      return;
-    }
-
-    setUploadingViewId(viewId);
-    
-    const fileExt = file.name.split(".").pop();
-    const fileName = `${Date.now()}-${viewId}.${fileExt}`;
-    const filePath = `mockups/${fileName}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("product-mockups")
-      .upload(filePath, file);
-
-    if (uploadError) {
-      toast.error("Görsel yüklenemedi");
-      setUploadingViewId(null);
-      return;
-    }
-
-    const { data: { publicUrl } } = supabase.storage
-      .from("product-mockups")
-      .getPublicUrl(filePath);
-
-    await updateViewMutation.mutateAsync({ viewId, updates: { mockup_image_url: publicUrl } });
-    
-    // Update local state
-    setViews(prev => prev.map(v => 
-      v.id === viewId ? { ...v, mockup_image_url: publicUrl } : v
-    ));
-    
-    setUploadingViewId(null);
-  };
-
-  const handleViewUpdate = (viewId: string, field: keyof ProductView, value: number) => {
-    setViews(prev => prev.map(v => 
-      v.id === viewId ? { ...v, [field]: value } : v
-    ));
-  };
-
-  const saveViewChanges = (view: ProductView) => {
-    updateViewMutation.mutate({
-      viewId: view.id,
-      updates: {
-        design_area_top: view.design_area_top,
-        design_area_left: view.design_area_left,
-        design_area_width: view.design_area_width,
-        design_area_height: view.design_area_height,
-      }
-    });
-  };
 
   return (
     <div className="border rounded-lg">
@@ -584,105 +509,50 @@ function ProductItemAdmin({ product, onToggle, onDelete }: ProductItemAdminProps
               <Loader2 className="w-5 h-5 animate-spin" />
             </div>
           ) : (
-            <Accordion type="single" collapsible className="space-y-2">
+            <div className="space-y-2">
               {views.map((view) => (
-                <AccordionItem value={view.id} key={view.id} className="border rounded-lg px-3">
-                  <AccordionTrigger className="hover:no-underline py-2">
-                    <div className="flex items-center gap-3">
-                      {view.mockup_image_url ? (
-                        <img src={view.mockup_image_url} alt="" className="w-10 h-10 object-cover rounded" />
-                      ) : (
-                        <div className="w-10 h-10 bg-muted rounded flex items-center justify-center">
-                          <ImageIcon className="w-4 h-4 text-muted-foreground" />
-                        </div>
-                      )}
-                      <span className="text-sm">{view.view_name}</span>
+                <div 
+                  key={view.id} 
+                  className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                >
+                  {view.mockup_image_url ? (
+                    <img src={view.mockup_image_url} alt="" className="w-12 h-12 object-cover rounded" />
+                  ) : (
+                    <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
+                      <ImageIcon className="w-5 h-5 text-muted-foreground" />
                     </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="space-y-4 pt-2 pb-3">
-                    {/* Image Upload */}
-                    <div className="space-y-2">
-                      <Label className="text-xs">Mockup Görseli (PNG/JPG, max 50MB)</Label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="file"
-                          accept="image/png,image/jpeg,image/jpg"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) handleImageUpload(file, view.id);
-                          }}
-                          disabled={uploadingViewId === view.id}
-                          className="text-xs"
-                        />
-                        {uploadingViewId === view.id && (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Design Area Controls */}
-                    <div className="space-y-3">
-                      <Label className="text-xs font-medium">Baskı Alanı Ayarları</Label>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Üst: {view.design_area_top}%</Label>
-                          <Slider
-                            value={[view.design_area_top]}
-                            onValueChange={([val]) => handleViewUpdate(view.id, "design_area_top", val)}
-                            min={0}
-                            max={80}
-                            step={1}
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Sol: {view.design_area_left}%</Label>
-                          <Slider
-                            value={[view.design_area_left]}
-                            onValueChange={([val]) => handleViewUpdate(view.id, "design_area_left", val)}
-                            min={0}
-                            max={80}
-                            step={1}
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Genişlik: {view.design_area_width}%</Label>
-                          <Slider
-                            value={[view.design_area_width]}
-                            onValueChange={([val]) => handleViewUpdate(view.id, "design_area_width", val)}
-                            min={10}
-                            max={100}
-                            step={1}
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Yükseklik: {view.design_area_height}%</Label>
-                          <Slider
-                            value={[view.design_area_height]}
-                            onValueChange={([val]) => handleViewUpdate(view.id, "design_area_height", val)}
-                            min={10}
-                            max={100}
-                            step={1}
-                          />
-                        </div>
-                      </div>
-                      <Button 
-                        size="sm" 
-                        onClick={() => saveViewChanges(view)}
-                        disabled={updateViewMutation.isPending}
-                        className="w-full"
-                      >
-                        {updateViewMutation.isPending ? (
-                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                        ) : (
-                          <Save className="w-4 h-4 mr-2" />
-                        )}
-                        Değişiklikleri Kaydet
-                      </Button>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
+                  )}
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{view.view_name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {view.mockup_image_url ? "Mockup yüklendi" : "Mockup bekleniyor"}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setEditorViewId(view.id)}
+                  >
+                    <Pencil className="w-4 h-4 mr-1" />
+                    Düzenle
+                  </Button>
+                </div>
               ))}
-            </Accordion>
+            </div>
+          )}
+
+          {/* View Editor Dialog */}
+          {editorView && (
+            <AdminViewEditor
+              view={editorView}
+              isOpen={!!editorViewId}
+              onClose={() => setEditorViewId(null)}
+              onUpdate={(updates) => {
+                setViews(prev => prev.map(v => 
+                  v.id === editorViewId ? { ...v, ...updates } : v
+                ));
+              }}
+            />
           )}
         </div>
       )}
