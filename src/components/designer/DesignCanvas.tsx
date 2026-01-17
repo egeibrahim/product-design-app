@@ -238,7 +238,96 @@ export function DesignCanvas({
             draggable={false}
           />
 
-          {/* Design Area Overlay */}
+          {/* Design Area with Clipping - elements outside won't show */}
+          <div 
+            className="absolute overflow-hidden"
+            style={{
+              top: `${designArea.top}%`,
+              left: `${designArea.left}%`,
+              width: `${designArea.width}%`,
+              height: `${designArea.height}%`,
+            }}
+          >
+            {/* Design Elements - clipped to design area */}
+            {elements.map((element) => {
+              const isSelected = selectedElement === element.id;
+              const isLocked = element.isLocked === true;
+              
+              // Calculate position relative to design area
+              const relativeX = ((element.x - designArea.left) / designArea.width) * 100;
+              const relativeY = ((element.y - designArea.top) / designArea.height) * 100;
+              
+              return (
+                <div
+                  key={element.id}
+                  className={`absolute transition-shadow ${
+                    isSelected
+                      ? "ring-2 ring-primary ring-offset-2"
+                      : "hover:ring-2 hover:ring-primary/50"
+                  } ${isDragging && isSelected ? "cursor-grabbing" : isLocked ? "cursor-not-allowed" : "cursor-grab"}`}
+                  style={{
+                    left: `${relativeX}%`,
+                    top: `${relativeY}%`,
+                    transform: `translate(-50%, -50%) rotate(${element.rotation || 0}deg)`,
+                  }}
+                  onMouseDown={(e) => handleMouseDown(e, element.id)}
+                >
+                  {element.type === "text" && (
+                    <span
+                      style={getTextStyle(element)}
+                      className="whitespace-nowrap select-none block"
+                    >
+                      {element.content}
+                    </span>
+                  )}
+                  {element.type === "image" && element.imageUrl && (
+                    <img
+                      src={element.imageUrl}
+                      alt="Design element"
+                      style={{
+                        width: element.width || 100,
+                        height: element.height || 100,
+                      }}
+                      className="object-contain select-none"
+                      draggable={false}
+                    />
+                  )}
+
+                  {/* Resize Handles */}
+                  {isSelected && !isLocked && (
+                    <>
+                      <div
+                        className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-primary rounded-sm cursor-nw-resize"
+                        onMouseDown={(e) => handleResizeStart(e, element.id, "nw")}
+                      />
+                      <div
+                        className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-primary rounded-sm cursor-ne-resize"
+                        onMouseDown={(e) => handleResizeStart(e, element.id, "ne")}
+                      />
+                      <div
+                        className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-primary rounded-sm cursor-sw-resize"
+                        onMouseDown={(e) => handleResizeStart(e, element.id, "sw")}
+                      />
+                      <div
+                        className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-primary rounded-sm cursor-se-resize"
+                        onMouseDown={(e) => handleResizeStart(e, element.id, "se")}
+                      />
+                      
+                      {/* Rotation handle */}
+                      <div
+                        className="absolute -top-8 left-1/2 -translate-x-1/2 w-4 h-4 bg-primary rounded-full cursor-grab flex items-center justify-center"
+                        onMouseDown={(e) => handleRotateStart(e, element.id, element)}
+                      >
+                        <div className="absolute top-4 w-px h-4 bg-primary" />
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Design Area Border Overlay */}
           <div 
             className="absolute border-2 border-dashed border-primary/30 rounded-lg pointer-events-none"
             style={{
@@ -249,76 +338,6 @@ export function DesignCanvas({
             }}
           />
 
-          {/* Design Elements */}
-          {elements.map((element) => {
-            const isSelected = selectedElement === element.id;
-            const isLocked = element.isLocked === true;
-            
-            return (
-              <div
-                key={element.id}
-                className={`absolute transition-shadow ${
-                  isSelected
-                    ? "ring-2 ring-primary ring-offset-2"
-                    : "hover:ring-2 hover:ring-primary/50"
-                } ${isDragging && isSelected ? "cursor-grabbing" : isLocked ? "cursor-not-allowed" : "cursor-grab"}`}
-                style={getElementStyle(element)}
-                onMouseDown={(e) => handleMouseDown(e, element.id)}
-              >
-                {element.type === "text" && (
-                  <span
-                    style={getTextStyle(element)}
-                    className="whitespace-nowrap select-none block"
-                  >
-                    {element.content}
-                  </span>
-                )}
-                {element.type === "image" && element.imageUrl && (
-                  <img
-                    src={element.imageUrl}
-                    alt="Design element"
-                    style={{
-                      width: element.width || 100,
-                      height: element.height || 100,
-                    }}
-                    className="object-contain select-none"
-                    draggable={false}
-                  />
-                )}
-
-                {/* Resize Handles */}
-                {isSelected && !isLocked && (
-                  <>
-                    {/* Corner handles */}
-                    <div
-                      className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-primary rounded-sm cursor-nw-resize"
-                      onMouseDown={(e) => handleResizeStart(e, element.id, "nw")}
-                    />
-                    <div
-                      className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-primary rounded-sm cursor-ne-resize"
-                      onMouseDown={(e) => handleResizeStart(e, element.id, "ne")}
-                    />
-                    <div
-                      className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-primary rounded-sm cursor-sw-resize"
-                      onMouseDown={(e) => handleResizeStart(e, element.id, "sw")}
-                    />
-                    <div
-                      className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-primary rounded-sm cursor-se-resize"
-                      onMouseDown={(e) => handleResizeStart(e, element.id, "se")}
-                    />
-                    
-                    {/* Rotation handle */}
-                    <div
-                      className="absolute -top-8 left-1/2 -translate-x-1/2 w-4 h-4 bg-primary rounded-full cursor-grab flex items-center justify-center"
-                      onMouseDown={(e) => handleRotateStart(e, element.id, element)}
-                    >
-                      <div className="absolute top-4 w-px h-4 bg-primary" />
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          })}
         </div>
       </div>
     </div>

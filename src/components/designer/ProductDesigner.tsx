@@ -12,8 +12,10 @@ import { ImageGallery } from "./ImageGallery";
 import { TextTemplates } from "./TextTemplates";
 import { ProductPanel } from "./ProductPanel";
 import { SavedDesignsPanel } from "./SavedDesignsPanel";
+import { AdminProductPanel } from "./AdminProductPanel";
+import { UserMenu } from "./UserMenu";
 import { Button } from "@/components/ui/button";
-import { Download, Save, Undo, Redo, FileImage, FileText } from "lucide-react";
+import { Download, Save, Undo, Redo, FileImage } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -21,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { DesignElement, ProductView, ActiveTab } from "./types";
 import { toast } from "sonner";
 import { useDesignHistory } from "@/hooks/useDesignHistory";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
 // Static mockups for fallback
@@ -39,6 +42,7 @@ const mockupImages: Record<string, string> = {
 const initialElements: DesignElement[] = [];
 
 export function ProductDesigner() {
+  const { user, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<ActiveTab>("upload");
   const [zoom, setZoom] = useState(100);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
@@ -322,6 +326,8 @@ export function ProductDesigner() {
             onUpdateElement={handleUpdateElement}
           />
         );
+      case "admin":
+        return isAdmin ? <AdminProductPanel /> : null;
       default:
         return null;
     }
@@ -405,6 +411,9 @@ export function ProductDesigner() {
             <Save className="w-4 h-4 mr-2" />
             Save
           </Button>
+
+          <div className="w-px h-6 bg-border ml-2" />
+          <UserMenu />
         </div>
       </header>
 
@@ -414,6 +423,7 @@ export function ProductDesigner() {
         <ToolSidebar 
           activeTab={activeTab} 
           onTabChange={setActiveTab}
+          isAdmin={isAdmin}
         />
 
         {/* Tab Content Panel */}
