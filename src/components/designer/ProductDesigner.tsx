@@ -32,12 +32,12 @@ import hoodieMockup from "@/assets/hoodie-mockup.png";
 import mugMockup from "@/assets/mug-mockup.png";
 import phonecaseMockup from "@/assets/phonecase-mockup.png";
 
-const mockupImages: Record<string, string> = {
-  "11111111-1111-1111-1111-111111111111": tshirtMockup,
-  "22222222-2222-2222-2222-222222222222": hoodieMockup,
-  "33333333-3333-3333-3333-333333333333": mugMockup,
-  "44444444-4444-4444-4444-444444444444": phonecaseMockup,
-};
+  const mockupImages: Record<string, string> = {
+    "a1111111-1111-1111-1111-111111111111": tshirtMockup,
+    "a2222222-2222-2222-2222-222222222222": hoodieMockup,
+    "a3333333-3333-3333-3333-333333333333": mugMockup,
+    "a4444444-4444-4444-4444-444444444444": phonecaseMockup,
+  };
 
 const initialElements: DesignElement[] = [];
 
@@ -46,7 +46,7 @@ export function ProductDesigner() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("upload");
   const [zoom, setZoom] = useState(100);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
-  const [currentProductId, setCurrentProductId] = useState("11111111-1111-1111-1111-111111111111");
+  const [currentProductId, setCurrentProductId] = useState<string>("");
   const [currentViewId, setCurrentViewId] = useState<string>("");
   const [productViews, setProductViews] = useState<ProductView[]>([]);
   const [selectedColorId, setSelectedColorId] = useState<string | null>(null);
@@ -63,21 +63,38 @@ export function ProductDesigner() {
   const selectedElement = elements.find((el) => el.id === selectedElementId) || null;
   const currentView = productViews.find((v) => v.id === currentViewId);
 
-  // Fetch views on mount for default product
+  // Load initial product and views on mount
   useEffect(() => {
-    const fetchInitialViews = async () => {
-      const { data } = await supabase
-        .from("product_views")
-        .select("*")
-        .eq("product_id", currentProductId)
-        .order("view_order");
-      
-      if (data && data.length > 0) {
-        setProductViews(data);
-        setCurrentViewId(data[0].id);
+    const loadInitialData = async () => {
+      // If no product selected, fetch the first active product
+      if (!currentProductId) {
+        const { data: products } = await supabase
+          .from("products")
+          .select("id")
+          .eq("is_active", true)
+          .order("name")
+          .limit(1);
+
+        if (products && products.length > 0) {
+          const productId = products[0].id;
+          setCurrentProductId(productId);
+          
+          // Also fetch and set views for this product
+          const { data: views } = await supabase
+            .from("product_views")
+            .select("*")
+            .eq("product_id", productId)
+            .order("view_order");
+          
+          if (views && views.length > 0) {
+            setProductViews(views);
+            setCurrentViewId(views[0].id);
+          }
+        }
       }
     };
-    fetchInitialViews();
+
+    loadInitialData();
   }, []);
 
   // Load views when product changes
@@ -136,8 +153,8 @@ export function ProductDesigner() {
   const handleColorSelect = useCallback(async (colorId: string, hexCode: string) => {
     setSelectedColorId(colorId);
     setSelectedColorHex(hexCode);
-    
-    // Fetch color-specific mockup for current view
+
+    // Try to load color-specific mockup for current view
     if (currentViewId && colorId) {
       const { data } = await supabase
         .from("product_view_color_mockups")
@@ -145,11 +162,18 @@ export function ProductDesigner() {
         .eq("product_view_id", currentViewId)
         .eq("color_id", colorId)
         .maybeSingle();
-      
+
       if (data?.mockup_image_url) {
+        // Ensure URL is properly formatted
+        const mockupUrl = data.mockup_image_url.startsWith('http') 
+          ? data.mockup_image_url 
+          : data.mockup_image_url.startsWith('/') 
+            ? data.mockup_image_url 
+            : `/${data.mockup_image_url}`;
+        
         setColorMockups(prev => ({
           ...prev,
-          [`${currentViewId}-${colorId}`]: data.mockup_image_url
+          [`${currentViewId}-${colorId}`]: mockupUrl
         }));
       }
     }
@@ -346,13 +370,23 @@ export function ProductDesigner() {
 
   // Get current mockup image - prioritize color-specific mockup
   const getMockupImage = () => {
-    // First check for color-specific mockup
+    // First check if there's a color-specific mockup for current view
     if (currentViewId && selectedColorId) {
       const colorMockup = colorMockups[`${currentViewId}-${selectedColorId}`];
       if (colorMockup) return colorMockup;
     }
-    // Fall back to view's default mockup or static mockups
-    return currentView?.mockup_image_url || mockupImages[currentProductId] || tshirtMockup;
+
+    // Then check if the current view has a default mockup
+    if (currentView?.mockup_image_url) {
+      return currentView.mockup_image_url;
+    }
+
+    // Fallback to product-level mockup
+    if (currentProductId && mockupImages[currentProductId]) {
+      return mockupImages[currentProductId];
+    }
+
+    return tshirtMockup;
   };
 
   const renderTabContent = () => {
