@@ -1,4 +1,4 @@
-import { Eye, Image, Type, Package, Bookmark, Upload, Layers, Settings } from "lucide-react";
+import { Eye, Image, Type, Package, Bookmark, Upload, Layers, Settings, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ActiveTab } from "./types";
@@ -11,16 +11,16 @@ interface ToolSidebarProps {
 
 const tabs = [
   { id: "mockup" as const, icon: Eye, label: "Mockup" },
-  { id: "upload" as const, icon: Upload, label: "Upload" },
-  { id: "image" as const, icon: Image, label: "Image" },
-  { id: "text" as const, icon: Type, label: "Text" },
-  { id: "product" as const, icon: Package, label: "Product" },
-  { id: "saved" as const, icon: Bookmark, label: "Saved" },
-  { id: "layers" as const, icon: Layers, label: "Layers" },
+  { id: "upload" as const, icon: Upload, label: "Yükle" },
+  { id: "image" as const, icon: Image, label: "Galeri" },
+  { id: "text" as const, icon: Type, label: "Yazı" },
+  { id: "product" as const, icon: Package, label: "Ürünler" },
+  { id: "saved" as const, icon: Bookmark, label: "Kayıtlı" },
+  { id: "layers" as const, icon: Layers, label: "Katmanlar" },
 ];
 
 const adminTabs = [
-  { id: "admin" as const, icon: Settings, label: "Admin Panel" },
+  { id: "admin" as const, icon: FolderOpen, label: "Katalog" },
 ];
 
 export function ToolSidebar({ activeTab, onTabChange, isAdmin }: ToolSidebarProps) {
@@ -29,7 +29,7 @@ export function ToolSidebar({ activeTab, onTabChange, isAdmin }: ToolSidebarProp
   return (
     <aside className="w-16 bg-card border-r border-border flex flex-col items-center py-4 gap-1">
       <TooltipProvider delayDuration={200}>
-        {allTabs.map((tab, index) => (
+        {allTabs.map((tab) => (
           <div key={tab.id}>
             {/* Add separator before admin tabs */}
             {isAdmin && tab.id === "admin" && (
