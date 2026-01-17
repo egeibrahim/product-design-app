@@ -200,9 +200,10 @@ function ProductsTab() {
   };
 
   const handleImageUpload = useCallback(async (file: File, viewIndex: number) => {
-    // Validate file type
-    if (!file.type.startsWith("image/")) {
-      toast.error("Sadece resim dosyaları yüklenebilir");
+    // Validate file type - PNG or JPG only
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+    if (!validTypes.includes(file.type)) {
+      toast.error("Sadece PNG veya JPG dosyaları yüklenebilir");
       return;
     }
 
@@ -286,7 +287,7 @@ function ProductsTab() {
             <div className="border-t pt-4 mt-4">
               <h4 className="font-medium mb-3">Görünümler (4 Açı)</h4>
               <p className="text-xs text-muted-foreground mb-3">
-                Her görünüm için 2048x2048 px PNG formatında mockup yükleyin
+                Her görünüm için 2048x2048 px PNG veya JPG formatında mockup yükleyin
               </p>
               <Accordion type="single" collapsible className="space-y-2">
                 {viewsData.map((view, index) => (
@@ -308,11 +309,11 @@ function ProductsTab() {
                     </AccordionTrigger>
                     <AccordionContent className="space-y-4 pt-2">
                       <div className="space-y-2">
-                        <Label>Görsel (PNG, max 50MB)</Label>
+                        <Label>Görsel (PNG/JPG, max 50MB)</Label>
                         <div className="flex items-center gap-2">
                           <Input
                             type="file"
-                            accept="image/png"
+                            accept="image/png,image/jpeg,image/jpg"
                             onChange={(e) => {
                               const file = e.target.files?.[0];
                               if (file) handleImageUpload(file, index);
@@ -474,8 +475,10 @@ function ProductItemAdmin({ product, onToggle, onDelete }: ProductItemAdminProps
   });
 
   const handleImageUpload = async (file: File, viewId: string) => {
-    if (!file.type.startsWith("image/")) {
-      toast.error("Sadece resim dosyaları yüklenebilir");
+    // Validate file type - PNG or JPG only
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+    if (!validTypes.includes(file.type)) {
+      toast.error("Sadece PNG veya JPG dosyaları yüklenebilir");
       return;
     }
 
@@ -599,11 +602,11 @@ function ProductItemAdmin({ product, onToggle, onDelete }: ProductItemAdminProps
                   <AccordionContent className="space-y-4 pt-2 pb-3">
                     {/* Image Upload */}
                     <div className="space-y-2">
-                      <Label className="text-xs">Mockup Görseli (PNG, max 50MB)</Label>
+                      <Label className="text-xs">Mockup Görseli (PNG/JPG, max 50MB)</Label>
                       <div className="flex items-center gap-2">
                         <Input
                           type="file"
-                          accept="image/png"
+                          accept="image/png,image/jpeg,image/jpg"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) handleImageUpload(file, view.id);
