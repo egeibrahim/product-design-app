@@ -10,6 +10,13 @@ export interface DesignElement {
   color?: string;
   fontFamily?: string;
   imageUrl?: string;
+  // Text styling
+  fontWeight?: "normal" | "bold";
+  fontStyle?: "normal" | "italic";
+  textDecoration?: "none" | "underline";
+  textAlign?: "left" | "center" | "right";
+  // Transform
+  rotation?: number;
 }
 
 export interface ProductMockup {
@@ -22,4 +29,9 @@ export interface ProductMockup {
     width: number;
     height: number;
   };
+}
+
+export interface DesignState {
+  elements: DesignElement[];
+  productId: string;
 }
