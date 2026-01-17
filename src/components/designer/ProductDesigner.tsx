@@ -411,6 +411,15 @@ export function ProductDesigner() {
           {renderTabContent()}
         </aside>
 
+        {/* Left Sidebar - Layers + Attributes */}
+        <LayersPanel
+          elements={elements}
+          selectedElement={selectedElementId}
+          onSelectElement={setSelectedElementId}
+          onDeleteElement={handleDeleteElement}
+          onUpdateElement={handleUpdateElement}
+        />
+
         {/* Canvas */}
         <div className="flex-1 flex flex-col">
           <DesignCanvas
@@ -434,15 +443,6 @@ export function ProductDesigner() {
             />
           </div>
         </div>
-
-        {/* Right Sidebar - Layers + Attributes */}
-        <LayersPanel
-          elements={elements}
-          selectedElement={selectedElementId}
-          onSelectElement={setSelectedElementId}
-          onDeleteElement={handleDeleteElement}
-          onUpdateElement={handleUpdateElement}
-        />
       </div>
 
       {/* Save Dialog */}
