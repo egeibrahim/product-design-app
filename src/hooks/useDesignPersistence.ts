@@ -10,40 +10,63 @@ export function useDesignPersistence() {
 
   // Load saved designs list on mount
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY + "-list");
-    if (saved) {
-      try {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY + "-list");
+      if (saved) {
         setSavedDesigns(JSON.parse(saved));
-      } catch {
-        console.error("Failed to load saved designs");
       }
+    } catch {
+      console.error("Failed to load saved designs");
     }
   }, []);
 
   const saveDesign = useCallback((name: string, elements: DesignElement[], productId: string) => {
-    const newDesign = {
-      name,
-      state: { elements, productId },
-      timestamp: Date.now(),
-    };
+    try {
+      // Filter out image data to reduce storage size
+      const lightElements = elements.map(el => ({
+        ...el,
+        imageUrl: el.type === "image" ? undefined : el.imageUrl, // Don't persist large base64 images
+      }));
 
-    setSavedDesigns((prev) => {
-      const existing = prev.findIndex((d) => d.name === name);
-      let updated;
-      if (existing >= 0) {
-        updated = [...prev];
-        updated[existing] = newDesign;
-      } else {
-        updated = [...prev, newDesign];
-      }
-      localStorage.setItem(STORAGE_KEY + "-list", JSON.stringify(updated));
-      return updated;
-    });
+      const newDesign = {
+        name,
+        state: { elements: lightElements, productId },
+        timestamp: Date.now(),
+      };
 
-    toast({
-      title: "Design saved",
-      description: `"${name}" has been saved successfully.`,
-    });
+      setSavedDesigns((prev) => {
+        const existing = prev.findIndex((d) => d.name === name);
+        let updated;
+        if (existing >= 0) {
+          updated = [...prev];
+          updated[existing] = newDesign;
+        } else {
+          updated = [...prev, newDesign];
+        }
+        
+        try {
+          localStorage.setItem(STORAGE_KEY + "-list", JSON.stringify(updated));
+        } catch (e) {
+          console.error("Failed to save designs list", e);
+          // Clear storage if quota exceeded
+          localStorage.removeItem(STORAGE_KEY + "-list");
+          localStorage.removeItem(STORAGE_KEY + "-autosave");
+        }
+        
+        return updated;
+      });
+
+      toast({
+        title: "Design saved",
+        description: `"${name}" has been saved (note: uploaded images are not persisted).`,
+      });
+    } catch (e) {
+      toast({
+        title: "Save failed",
+        description: "Could not save design. Storage may be full.",
+        variant: "destructive",
+      });
+    }
   }, [toast]);
 
   const loadDesign = useCallback((name: string): DesignState | null => {
@@ -61,7 +84,11 @@ export function useDesignPersistence() {
   const deleteDesign = useCallback((name: string) => {
     setSavedDesigns((prev) => {
       const updated = prev.filter((d) => d.name !== name);
-      localStorage.setItem(STORAGE_KEY + "-list", JSON.stringify(updated));
+      try {
+        localStorage.setItem(STORAGE_KEY + "-list", JSON.stringify(updated));
+      } catch {
+        console.error("Failed to update storage");
+      }
       return updated;
     });
 
@@ -71,23 +98,58 @@ export function useDesignPersistence() {
     });
   }, [toast]);
 
-  // Auto-save current design
+  // Auto-save current design (lightweight - no images)
   const autoSave = useCallback((elements: DesignElement[], productId: string) => {
-    const state: DesignState = { elements, productId };
-    localStorage.setItem(STORAGE_KEY + "-autosave", JSON.stringify(state));
+    try {
+      // Only save text elements and element metadata (not base64 images)
+      const lightElements = elements.map(el => ({
+        ...el,
+        imageUrl: el.type === "image" ? "[image]" : el.imageUrl, // Placeholder for images
+      }));
+      
+      const state: DesignState = { elements: lightElements, productId };
+      localStorage.setItem(STORAGE_KEY + "-autosave", JSON.stringify(state));
+    } catch (e) {
+      // Silently fail or clear old data
+      console.warn("Auto-save failed, clearing old data");
+      try {
+        localStorage.removeItem(STORAGE_KEY + "-autosave");
+      } catch {
+        // Ignore
+      }
+    }
   }, []);
 
   const loadAutoSave = useCallback((): DesignState | null => {
-    const saved = localStorage.getItem(STORAGE_KEY + "-autosave");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return null;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY + "-autosave");
+      if (saved) {
+        const state = JSON.parse(saved);
+        // Filter out placeholder images
+        state.elements = state.elements.filter((el: DesignElement) => 
+          el.type !== "image" || (el.imageUrl && el.imageUrl !== "[image]")
+        );
+        return state;
       }
+    } catch {
+      console.error("Failed to load auto-save");
     }
     return null;
   }, []);
+
+  const clearStorage = useCallback(() => {
+    try {
+      localStorage.removeItem(STORAGE_KEY + "-list");
+      localStorage.removeItem(STORAGE_KEY + "-autosave");
+      setSavedDesigns([]);
+      toast({
+        title: "Storage cleared",
+        description: "All saved designs have been removed.",
+      });
+    } catch {
+      console.error("Failed to clear storage");
+    }
+  }, [toast]);
 
   return {
     savedDesigns,
@@ -96,5 +158,6 @@ export function useDesignPersistence() {
     deleteDesign,
     autoSave,
     loadAutoSave,
+    clearStorage,
   };
 }
