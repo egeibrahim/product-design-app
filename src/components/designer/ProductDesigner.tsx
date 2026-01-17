@@ -2,100 +2,95 @@ import { useState, useCallback, useEffect } from "react";
 import html2canvas from "html2canvas";
 import { ToolSidebar } from "./ToolSidebar";
 import { DesignCanvas } from "./DesignCanvas";
-import { PropertyInspector } from "./PropertyInspector";
 import { LayersPanel } from "./LayersPanel";
+import { ColorPalette } from "./ColorPalette";
+import { ElementActionsBar } from "./ElementActionsBar";
+import { ViewSwitcher } from "./ViewSwitcher";
+import { UploadPanel } from "./UploadPanel";
+import { MockupPanel } from "./MockupPanel";
+import { ImageGallery } from "./ImageGallery";
+import { TextTemplates } from "./TextTemplates";
+import { ProductPanel } from "./ProductPanel";
+import { SavedDesignsPanel } from "./SavedDesignsPanel";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Download, Save, Undo, Redo, FileImage, FileText, FolderOpen } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { Download, Save, Undo, Redo, FileImage, FileText } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DesignElement, ProductMockup } from "./types";
-import { useToast } from "@/hooks/use-toast";
+import { DesignElement, ProductView, ActiveTab } from "./types";
+import { toast } from "sonner";
 import { useDesignHistory } from "@/hooks/useDesignHistory";
-import { useDesignPersistence } from "@/hooks/useDesignPersistence";
+import { supabase } from "@/integrations/supabase/client";
+
+// Static mockups for fallback
 import tshirtMockup from "@/assets/tshirt-mockup.png";
 import hoodieMockup from "@/assets/hoodie-mockup.png";
 import mugMockup from "@/assets/mug-mockup.png";
 import phonecaseMockup from "@/assets/phonecase-mockup.png";
 
-const products: ProductMockup[] = [
-  {
-    id: "tshirt",
-    name: "T-Shirt",
-    image: tshirtMockup,
-    designArea: { top: 25, left: 25, width: 50, height: 40 },
-  },
-  {
-    id: "hoodie",
-    name: "Hoodie",
-    image: hoodieMockup,
-    designArea: { top: 30, left: 30, width: 40, height: 35 },
-  },
-  {
-    id: "mug",
-    name: "Mug",
-    image: mugMockup,
-    designArea: { top: 25, left: 20, width: 45, height: 50 },
-  },
-  {
-    id: "phonecase",
-    name: "Phone Case",
-    image: phonecaseMockup,
-    designArea: { top: 20, left: 25, width: 50, height: 60 },
-  },
-];
+const mockupImages: Record<string, string> = {
+  "11111111-1111-1111-1111-111111111111": tshirtMockup,
+  "22222222-2222-2222-2222-222222222222": hoodieMockup,
+  "33333333-3333-3333-3333-333333333333": mugMockup,
+  "44444444-4444-4444-4444-444444444444": phonecaseMockup,
+};
 
-const initialElements: DesignElement[] = [
-  {
-    id: "1",
-    type: "text",
-    content: "Your Design",
-    x: 50,
-    y: 40,
-    fontSize: 32,
-    color: "#3B82F6",
-    fontFamily: "Inter",
-    fontWeight: "bold",
-    fontStyle: "normal",
-    textDecoration: "none",
-    textAlign: "center",
-    rotation: 0,
-  },
-  {
-    id: "2",
-    type: "text",
-    content: "Here",
-    x: 50,
-    y: 50,
-    fontSize: 24,
-    color: "#000000",
-    fontFamily: "Inter",
-    fontWeight: "normal",
-    fontStyle: "normal",
-    textDecoration: "none",
-    textAlign: "center",
-    rotation: 0,
-  },
-];
+const initialElements: DesignElement[] = [];
 
 export function ProductDesigner() {
-  const { toast } = useToast();
-  const [activeTool, setActiveTool] = useState("select");
+  const [activeTab, setActiveTab] = useState<ActiveTab>("upload");
   const [zoom, setZoom] = useState(100);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
-  const [currentProductId, setCurrentProductId] = useState("tshirt");
+  const [currentProductId, setCurrentProductId] = useState("11111111-1111-1111-1111-111111111111");
+  const [currentViewId, setCurrentViewId] = useState<string>("");
+  const [productViews, setProductViews] = useState<ProductView[]>([]);
+  const [selectedColor, setSelectedColor] = useState("#FFFFFF");
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
-  const [loadDialogOpen, setLoadDialogOpen] = useState(false);
   const [designName, setDesignName] = useState("");
-  const [showLayers, setShowLayers] = useState(true);
+  
+  // Design elements per view
+  const [designsByView, setDesignsByView] = useState<Record<string, DesignElement[]>>({});
 
   const { elements, setElements, resetElements, undo, redo, canUndo, canRedo } = useDesignHistory(initialElements);
-  const { savedDesigns, saveDesign, loadDesign, deleteDesign, autoSave, loadAutoSave, clearStorage } = useDesignPersistence();
 
-  const currentProduct = products.find((p) => p.id === currentProductId) || products[0];
   const selectedElement = elements.find((el) => el.id === selectedElementId) || null;
+  const currentView = productViews.find((v) => v.id === currentViewId);
+
+  // Load views when product changes
+  const handleViewsLoaded = useCallback((views: ProductView[]) => {
+    setProductViews(views);
+    if (views.length > 0 && (!currentViewId || !views.find(v => v.id === currentViewId))) {
+      setCurrentViewId(views[0].id);
+    }
+  }, [currentViewId]);
+
+  // Switch view
+  const handleViewChange = useCallback((viewId: string) => {
+    // Save current elements to current view
+    if (currentViewId) {
+      setDesignsByView(prev => ({
+        ...prev,
+        [currentViewId]: elements
+      }));
+    }
+    
+    // Load elements for new view
+    setCurrentViewId(viewId);
+    const viewElements = designsByView[viewId] || [];
+    resetElements(viewElements);
+    setSelectedElementId(null);
+  }, [currentViewId, elements, designsByView, resetElements]);
+
+  // Save current view elements when they change
+  useEffect(() => {
+    if (currentViewId && elements.length > 0) {
+      setDesignsByView(prev => ({
+        ...prev,
+        [currentViewId]: elements
+      }));
+    }
+  }, [elements, currentViewId]);
 
   const handleUpdateElement = useCallback((id: string, updates: Partial<DesignElement>) => {
     setElements((prev) =>
@@ -113,7 +108,6 @@ export function ProductDesigner() {
   // Backspace/Delete key to remove selected element
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't delete if user is typing in an input
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
         return;
@@ -129,25 +123,26 @@ export function ProductDesigner() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedElementId, handleDeleteElement]);
 
-  const handleAddText = () => {
+  const handleAddText = (text: string, style?: Partial<DesignElement>) => {
     const newElement: DesignElement = {
       id: Date.now().toString(),
       type: "text",
-      content: "New Text",
+      content: text,
       x: 50,
       y: 45,
-      fontSize: 24,
+      fontSize: style?.fontSize || 24,
       color: "#000000",
-      fontFamily: "Inter",
-      fontWeight: "normal",
-      fontStyle: "normal",
+      fontFamily: style?.fontFamily || "Inter",
+      fontWeight: style?.fontWeight || "normal",
+      fontStyle: style?.fontStyle || "normal",
       textDecoration: "none",
       textAlign: "center",
       rotation: 0,
+      isVisible: true,
+      isLocked: false,
     };
     setElements((prev) => [...prev, newElement]);
     setSelectedElementId(newElement.id);
-    setActiveTool("select");
   };
 
   const handleImageUpload = (imageUrl: string) => {
@@ -161,93 +156,175 @@ export function ProductDesigner() {
       height: 100,
       imageUrl,
       rotation: 0,
+      isVisible: true,
+      isLocked: false,
     };
     setElements((prev) => [...prev, newElement]);
     setSelectedElementId(newElement.id);
-    setActiveTool("select");
-    toast({
-      title: "Image uploaded",
-      description: "Your image has been added to the canvas. Drag to reposition.",
-    });
+    toast.success("Image added to canvas");
   };
 
-  const handleExport = async (format: "png" | "pdf") => {
+  const handleExport = async (format: "png" | "pdf" | "original") => {
     const canvas = document.getElementById("design-canvas");
     if (!canvas) return;
 
     try {
       const renderedCanvas = await html2canvas(canvas, {
-        backgroundColor: "#ffffff",
-        scale: 2,
+        backgroundColor: selectedColor,
+        scale: format === "original" ? 4 : 2,
         useCORS: true,
       });
 
       const imgData = renderedCanvas.toDataURL("image/png");
       const link = document.createElement("a");
-      link.download = `${currentProduct.name.toLowerCase()}-design.${format === "pdf" ? "png" : "png"}`;
+      link.download = `design-${currentViewId}.${format === "pdf" ? "png" : "png"}`;
       link.href = imgData;
       link.click();
 
-      toast({
-        title: "Export successful",
-        description: `Your design has been exported as ${format.toUpperCase()}.`,
-      });
+      toast.success(`Design exported as ${format.toUpperCase()}`);
     } catch (error) {
-      toast({
-        title: "Export failed",
-        description: "There was an error exporting your design.",
-        variant: "destructive",
-      });
+      toast.error("Failed to export design");
     }
   };
 
-  const handleSaveDesign = () => {
+  const handleSaveDesign = async () => {
     if (!designName.trim()) {
-      toast({
-        title: "Name required",
-        description: "Please enter a name for your design.",
-        variant: "destructive",
-      });
+      toast.error("Please enter a design name");
       return;
     }
-    saveDesign(designName.trim(), elements, currentProductId);
-    setSaveDialogOpen(false);
-    setDesignName("");
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error("Please sign in to save designs");
+      return;
+    }
+
+    // Save current view elements first
+    const allDesigns = {
+      ...designsByView,
+      [currentViewId]: elements
+    };
+
+    const { error } = await supabase.from("saved_designs").insert([{
+      user_id: user.id,
+      product_id: currentProductId,
+      name: designName.trim(),
+      design_data: allDesigns as unknown as Record<string, unknown>,
+    }]);
+
+    if (!error) {
+      toast.success("Design saved successfully");
+      setSaveDialogOpen(false);
+      setDesignName("");
+    } else {
+      toast.error("Failed to save design");
+    }
   };
 
-  const handleLoadDesign = (name: string) => {
-    const state = loadDesign(name);
-    if (state) {
-      resetElements(state.elements);
-      setCurrentProductId(state.productId);
-      setSelectedElementId(null);
+  const handleLoadDesign = (designData: Record<string, DesignElement[]>, productId: string) => {
+    setDesignsByView(designData);
+    if (productId) {
+      setCurrentProductId(productId);
     }
-    setLoadDialogOpen(false);
+    // Load first view's elements
+    const firstViewId = Object.keys(designData)[0];
+    if (firstViewId) {
+      setCurrentViewId(firstViewId);
+      resetElements(designData[firstViewId] || []);
+    }
+    setSelectedElementId(null);
+  };
+
+  // Element action handlers
+  const handleAlign = (alignment: string) => {
+    if (!selectedElementId || !currentView) return;
+    
+    const updates: Partial<DesignElement> = {};
+    if (alignment === "left") updates.x = 20;
+    if (alignment === "center") updates.x = 50;
+    if (alignment === "right") updates.x = 80;
+    if (alignment === "top") updates.y = 20;
+    if (alignment === "middle") updates.y = 50;
+    if (alignment === "bottom") updates.y = 80;
+    
+    handleUpdateElement(selectedElementId, updates);
+  };
+
+  const handleFlip = (direction: "horizontal" | "vertical") => {
+    // Flip would require additional transform properties
+    toast.info(`Flip ${direction} - Coming soon`);
+  };
+
+  const handleRemoveBg = () => {
+    toast.info("Remove background - Coming soon");
+  };
+
+  const handleCrop = () => {
+    toast.info("Crop - Coming soon");
+  };
+
+  const handleDuplicate = () => {
+    if (!selectedElement) return;
+    
+    const newElement: DesignElement = {
+      ...selectedElement,
+      id: Date.now().toString(),
+      x: selectedElement.x + 5,
+      y: selectedElement.y + 5,
+    };
+    setElements((prev) => [...prev, newElement]);
+    setSelectedElementId(newElement.id);
+    toast.success("Element duplicated");
+  };
+
+  const handleSaveAsTemplate = () => {
+    toast.info("Save as template - Coming soon");
+  };
+
+  // Get current mockup image
+  const getMockupImage = () => {
+    return mockupImages[currentProductId] || currentView?.mockup_image_url || tshirtMockup;
+  };
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case "mockup":
+        return (
+          <MockupPanel
+            views={productViews}
+            designsByView={designsByView}
+            productColor={selectedColor}
+          />
+        );
+      case "upload":
+        return <UploadPanel onImageSelect={handleImageUpload} />;
+      case "image":
+        return <ImageGallery onImageSelect={handleImageUpload} />;
+      case "text":
+        return <TextTemplates onAddText={handleAddText} />;
+      case "product":
+        return (
+          <ProductPanel
+            selectedProductId={currentProductId}
+            onProductSelect={setCurrentProductId}
+            onViewsLoaded={handleViewsLoaded}
+          />
+        );
+      case "saved":
+        return <SavedDesignsPanel onLoadDesign={handleLoadDesign} />;
+      default:
+        return null;
+    }
   };
 
   return (
     <div className="h-screen flex flex-col bg-background">
-      {/* Top Toolbar */}
+      {/* Top Toolbar - Dynamic based on selection */}
       <header className="h-14 border-b border-border bg-card flex items-center justify-between px-4">
         <div className="flex items-center gap-4">
           <h1 className="text-lg font-semibold">Product Designer</h1>
           <div className="w-px h-6 bg-border" />
           
-          {/* Product Selector */}
-          <Select value={currentProductId} onValueChange={setCurrentProductId}>
-            <SelectTrigger className="w-[140px] h-8">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {products.map((product) => (
-                <SelectItem key={product.id} value={product.id}>
-                  {product.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <div className="w-px h-6 bg-border" />
           <div className="flex items-center gap-1">
             <Button 
               variant="ghost" 
@@ -270,14 +347,31 @@ export function ProductDesigner() {
               <Redo className="w-4 h-4" />
             </Button>
           </div>
+
+          <div className="w-px h-6 bg-border" />
+
+          {/* Dynamic toolbar content */}
+          <div className="flex-1 overflow-hidden">
+            {selectedElement ? (
+              <ElementActionsBar
+                onAlign={handleAlign}
+                onFlip={handleFlip}
+                onRemoveBg={handleRemoveBg}
+                onCrop={handleCrop}
+                onDuplicate={handleDuplicate}
+                onSaveAsTemplate={handleSaveAsTemplate}
+                elementType={selectedElement.type}
+              />
+            ) : (
+              <ColorPalette
+                selectedColor={selectedColor}
+                onColorSelect={setSelectedColor}
+              />
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleAddText}>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Text
-          </Button>
-          
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
@@ -290,72 +384,64 @@ export function ProductDesigner() {
                 <FileImage className="w-4 h-4 mr-2" />
                 Export as PNG
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport("pdf")}>
-                <FileText className="w-4 h-4 mr-2" />
-                Export as PDF
+              <DropdownMenuItem onClick={() => handleExport("original")}>
+                <FileImage className="w-4 h-4 mr-2" />
+                Export Original (High-Res)
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm">
-                <Save className="w-4 h-4 mr-2" />
-                Save
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setSaveDialogOpen(true)}>
-                <Save className="w-4 h-4 mr-2" />
-                Save Design
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setLoadDialogOpen(true)}>
-                <FolderOpen className="w-4 h-4 mr-2" />
-                Load Design
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={clearStorage} className="text-destructive">
-                Clear All Saved Data
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button size="sm" onClick={() => setSaveDialogOpen(true)}>
+            <Save className="w-4 h-4 mr-2" />
+            Save
+          </Button>
         </div>
       </header>
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar - Tools */}
+        {/* Left Sidebar - Tabs */}
         <ToolSidebar 
-          activeTool={activeTool} 
-          onToolChange={setActiveTool}
-          onImageUpload={handleImageUpload}
+          activeTab={activeTab} 
+          onTabChange={setActiveTab}
         />
 
-        {/* Layers Panel - Always visible */}
+        {/* Tab Content Panel */}
+        <aside className="w-64 bg-card border-r border-border overflow-hidden">
+          {renderTabContent()}
+        </aside>
+
+        {/* Canvas */}
+        <div className="flex-1 flex flex-col">
+          <DesignCanvas
+            elements={elements.filter(el => el.isVisible !== false)}
+            selectedElement={selectedElementId}
+            onSelectElement={setSelectedElementId}
+            onUpdateElement={handleUpdateElement}
+            zoom={zoom}
+            onZoomChange={setZoom}
+            currentView={currentView}
+            mockupImage={getMockupImage()}
+            productColor={selectedColor}
+          />
+          
+          {/* View Switcher */}
+          <div className="bg-card border-t border-border py-3">
+            <ViewSwitcher
+              views={productViews}
+              activeViewId={currentViewId}
+              onViewChange={handleViewChange}
+            />
+          </div>
+        </div>
+
+        {/* Right Sidebar - Layers + Attributes */}
         <LayersPanel
           elements={elements}
           selectedElement={selectedElementId}
           onSelectElement={setSelectedElementId}
           onDeleteElement={handleDeleteElement}
-        />
-
-        {/* Canvas */}
-        <DesignCanvas
-          elements={elements}
-          selectedElement={selectedElementId}
-          onSelectElement={setSelectedElementId}
           onUpdateElement={handleUpdateElement}
-          zoom={zoom}
-          onZoomChange={setZoom}
-          currentProduct={currentProduct}
-        />
-
-        {/* Right Sidebar - Properties */}
-        <PropertyInspector
-          selectedElement={selectedElement}
-          onUpdateElement={handleUpdateElement}
-          onDeleteElement={handleDeleteElement}
         />
       </div>
 
@@ -365,7 +451,7 @@ export function ProductDesigner() {
           <DialogHeader>
             <DialogTitle>Save Design</DialogTitle>
             <DialogDescription>
-              Enter a name for your design. Note: Uploaded images are not persisted.
+              Enter a name for your design. Your design will be saved to your account.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -383,55 +469,6 @@ export function ProductDesigner() {
               Cancel
             </Button>
             <Button onClick={handleSaveDesign}>Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Load Dialog */}
-      <Dialog open={loadDialogOpen} onOpenChange={setLoadDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Load Design</DialogTitle>
-            <DialogDescription>
-              Select a saved design to load.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4 space-y-2 max-h-64 overflow-y-auto">
-            {savedDesigns.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No saved designs yet.
-              </p>
-            ) : (
-              savedDesigns.map((design) => (
-                <div
-                  key={design.name}
-                  className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent cursor-pointer"
-                  onClick={() => handleLoadDesign(design.name)}
-                >
-                  <div>
-                    <p className="font-medium">{design.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(design.timestamp).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteDesign(design.name);
-                    }}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              ))
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setLoadDialogOpen(false)}>
-              Cancel
-            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

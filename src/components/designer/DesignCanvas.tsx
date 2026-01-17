@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback } from "react";
 import { ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DesignElement, ProductMockup } from "./types";
+import { DesignElement, ProductView } from "./types";
 
 interface DesignCanvasProps {
   elements: DesignElement[];
@@ -10,7 +10,9 @@ interface DesignCanvasProps {
   onUpdateElement: (id: string, updates: Partial<DesignElement>) => void;
   zoom: number;
   onZoomChange: (zoom: number) => void;
-  currentProduct: ProductMockup;
+  currentView?: ProductView;
+  mockupImage: string;
+  productColor: string;
 }
 
 type ResizeHandle = "nw" | "ne" | "sw" | "se" | null;
@@ -22,7 +24,9 @@ export function DesignCanvas({
   onUpdateElement,
   zoom,
   onZoomChange,
-  currentProduct,
+  currentView,
+  mockupImage,
+  productColor,
 }: DesignCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -30,8 +34,16 @@ export function DesignCanvas({
   const [isRotating, setIsRotating] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [initialSize, setInitialSize] = useState({ width: 0, height: 0 });
-  const [initialRotation, setInitialRotation] = useState(0);
   const [rotationCenter, setRotationCenter] = useState({ x: 0, y: 0 });
+
+  const designArea = currentView
+    ? {
+        top: Number(currentView.design_area_top),
+        left: Number(currentView.design_area_left),
+        width: Number(currentView.design_area_width),
+        height: Number(currentView.design_area_height),
+      }
+    : { top: 25, left: 25, width: 50, height: 40 };
 
   const handleCanvasClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
@@ -40,7 +52,9 @@ export function DesignCanvas({
   };
 
   const handleMouseDown = (e: React.MouseEvent, elementId: string) => {
-    // Only start dragging on primary mouse button
+    const element = elements.find((el) => el.id === elementId);
+    if (element?.isLocked) return;
+    
     if (e.button !== 0) return;
     
     e.stopPropagation();
@@ -58,7 +72,7 @@ export function DesignCanvas({
   const handleResizeStart = (e: React.MouseEvent, elementId: string, handle: ResizeHandle) => {
     e.stopPropagation();
     const element = elements.find((el) => el.id === elementId);
-    if (!element) return;
+    if (!element || element.isLocked) return;
 
     setIsResizing(handle);
     setInitialSize({
@@ -70,7 +84,7 @@ export function DesignCanvas({
 
   const handleRotateStart = (e: React.MouseEvent, elementId: string, element: DesignElement) => {
     e.stopPropagation();
-    if (!canvasRef.current) return;
+    if (element.isLocked || !canvasRef.current) return;
 
     const rect = canvasRef.current.getBoundingClientRect();
     const centerX = rect.left + (element.x / 100) * rect.width;
@@ -78,14 +92,13 @@ export function DesignCanvas({
 
     setIsRotating(true);
     setRotationCenter({ x: centerX, y: centerY });
-    setInitialRotation(element.rotation || 0);
   };
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!selectedElement || !canvasRef.current) return;
 
     const element = elements.find((el) => el.id === selectedElement);
-    if (!element) return;
+    if (!element || element.isLocked) return;
 
     if (isRotating) {
       const angle = Math.atan2(
@@ -162,7 +175,9 @@ export function DesignCanvas({
       {/* Canvas Toolbar */}
       <div className="h-12 bg-card border-b border-border flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">{currentProduct.name} Design</span>
+          <span className="text-sm text-muted-foreground">
+            {currentView?.view_name || "Design"} View
+          </span>
         </div>
         
         <div className="flex items-center gap-2">
@@ -200,6 +215,7 @@ export function DesignCanvas({
       {/* Canvas Area */}
       <div
         className="flex-1 flex items-center justify-center p-8 overflow-auto"
+        style={{ backgroundColor: "hsl(var(--muted))" }}
         onClick={handleCanvasClick}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -209,13 +225,16 @@ export function DesignCanvas({
           ref={canvasRef}
           id="design-canvas"
           className="relative bg-card rounded-lg shadow-designer-lg transition-transform duration-200"
-          style={{ transform: `scale(${zoom / 100})` }}
+          style={{ 
+            transform: `scale(${zoom / 100})`,
+            backgroundColor: productColor,
+          }}
         >
           {/* Product Mockup */}
           <img
-            src={currentProduct.image}
-            alt={`${currentProduct.name} Mockup`}
-            className="w-[400px] h-auto select-none"
+            src={mockupImage}
+            alt="Product Mockup"
+            className="w-[400px] h-auto select-none mix-blend-multiply"
             draggable={false}
           />
 
@@ -223,16 +242,17 @@ export function DesignCanvas({
           <div 
             className="absolute border-2 border-dashed border-primary/30 rounded-lg pointer-events-none"
             style={{
-              top: `${currentProduct.designArea.top}%`,
-              left: `${currentProduct.designArea.left}%`,
-              width: `${currentProduct.designArea.width}%`,
-              height: `${currentProduct.designArea.height}%`,
+              top: `${designArea.top}%`,
+              left: `${designArea.left}%`,
+              width: `${designArea.width}%`,
+              height: `${designArea.height}%`,
             }}
           />
 
           {/* Design Elements */}
           {elements.map((element) => {
             const isSelected = selectedElement === element.id;
+            const isLocked = element.isLocked === true;
             
             return (
               <div
@@ -241,7 +261,7 @@ export function DesignCanvas({
                   isSelected
                     ? "ring-2 ring-primary ring-offset-2"
                     : "hover:ring-2 hover:ring-primary/50"
-                } ${isDragging && isSelected ? "cursor-grabbing" : "cursor-grab"}`}
+                } ${isDragging && isSelected ? "cursor-grabbing" : isLocked ? "cursor-not-allowed" : "cursor-grab"}`}
                 style={getElementStyle(element)}
                 onMouseDown={(e) => handleMouseDown(e, element.id)}
               >
@@ -267,7 +287,7 @@ export function DesignCanvas({
                 )}
 
                 {/* Resize Handles */}
-                {isSelected && (
+                {isSelected && !isLocked && (
                   <>
                     {/* Corner handles */}
                     <div
