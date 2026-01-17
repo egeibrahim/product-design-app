@@ -49,7 +49,9 @@ export function ProductDesigner() {
   const [currentProductId, setCurrentProductId] = useState("11111111-1111-1111-1111-111111111111");
   const [currentViewId, setCurrentViewId] = useState<string>("");
   const [productViews, setProductViews] = useState<ProductView[]>([]);
-  const [selectedColor, setSelectedColor] = useState("#FFFFFF");
+  const [selectedColorId, setSelectedColorId] = useState<string | null>(null);
+  const [selectedColorHex, setSelectedColorHex] = useState("#FFFFFF");
+  const [colorMockups, setColorMockups] = useState<Record<string, string>>({});
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [designName, setDesignName] = useState("");
   
@@ -112,6 +114,29 @@ export function ProductDesigner() {
       }));
     }
   }, [elements, currentViewId]);
+
+  // Handle color selection and fetch color-specific mockup
+  const handleColorSelect = useCallback(async (colorId: string, hexCode: string) => {
+    setSelectedColorId(colorId);
+    setSelectedColorHex(hexCode);
+    
+    // Fetch color-specific mockup for current view
+    if (currentViewId && colorId) {
+      const { data } = await supabase
+        .from("product_view_color_mockups")
+        .select("mockup_image_url")
+        .eq("product_view_id", currentViewId)
+        .eq("color_id", colorId)
+        .maybeSingle();
+      
+      if (data?.mockup_image_url) {
+        setColorMockups(prev => ({
+          ...prev,
+          [`${currentViewId}-${colorId}`]: data.mockup_image_url
+        }));
+      }
+    }
+  }, [currentViewId]);
 
   const handleUpdateElement = useCallback((id: string, updates: Partial<DesignElement>) => {
     setElements((prev) =>
@@ -191,7 +216,7 @@ export function ProductDesigner() {
 
     try {
       const renderedCanvas = await html2canvas(canvas, {
-        backgroundColor: selectedColor,
+        backgroundColor: selectedColorHex,
         scale: format === "original" ? 4 : 2,
         useCORS: true,
       });
@@ -302,9 +327,15 @@ export function ProductDesigner() {
     toast.info("Save as template - Coming soon");
   };
 
-  // Get current mockup image
+  // Get current mockup image - prioritize color-specific mockup
   const getMockupImage = () => {
-    return mockupImages[currentProductId] || currentView?.mockup_image_url || tshirtMockup;
+    // First check for color-specific mockup
+    if (currentViewId && selectedColorId) {
+      const colorMockup = colorMockups[`${currentViewId}-${selectedColorId}`];
+      if (colorMockup) return colorMockup;
+    }
+    // Fall back to view's default mockup or static mockups
+    return currentView?.mockup_image_url || mockupImages[currentProductId] || tshirtMockup;
   };
 
   const renderTabContent = () => {
@@ -314,7 +345,7 @@ export function ProductDesigner() {
           <MockupPanel
             views={productViews}
             designsByView={designsByView}
-            productColor={selectedColor}
+            productColor={selectedColorHex}
           />
         );
       case "upload":
@@ -397,8 +428,8 @@ export function ProductDesigner() {
               />
             ) : (
               <ColorPalette
-                selectedColor={selectedColor}
-                onColorSelect={setSelectedColor}
+                selectedColorId={selectedColorId}
+                onColorSelect={handleColorSelect}
               />
             )}
           </div>
@@ -459,7 +490,7 @@ export function ProductDesigner() {
             onZoomChange={setZoom}
             currentView={currentView}
             mockupImage={getMockupImage()}
-            productColor={selectedColor}
+            productColor={selectedColorHex}
           />
           
           {/* View Switcher */}

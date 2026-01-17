@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Plus, Upload, Trash2, Save, Package, Loader2, Eye, EyeOff, Palette, Image as ImageIcon } from "lucide-react";
+import { Plus, Upload, Trash2, Save, Package, Loader2, Eye, EyeOff, Palette, Image as ImageIcon, Edit2, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -434,9 +434,12 @@ interface ProductItemAdminProps {
 }
 
 function ProductItemAdmin({ product, onToggle, onDelete }: ProductItemAdminProps) {
+  const queryClient = useQueryClient();
   const [isExpanded, setIsExpanded] = useState(false);
   const [views, setViews] = useState<ProductView[]>([]);
   const [isLoadingViews, setIsLoadingViews] = useState(false);
+  const [editingViewId, setEditingViewId] = useState<string | null>(null);
+  const [uploadingViewId, setUploadingViewId] = useState<string | null>(null);
 
   const loadViews = async () => {
     if (views.length > 0) return;
@@ -451,6 +454,82 @@ function ProductItemAdmin({ product, onToggle, onDelete }: ProductItemAdminProps
       setViews(data);
     }
     setIsLoadingViews(false);
+  };
+
+  const updateViewMutation = useMutation({
+    mutationFn: async ({ viewId, updates }: { viewId: string; updates: Partial<ProductView> }) => {
+      const { error } = await supabase
+        .from("product_views")
+        .update(updates)
+        .eq("id", viewId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-products"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      toast.success("Görünüm güncellendi");
+      setEditingViewId(null);
+    },
+  });
+
+  const handleImageUpload = async (file: File, viewId: string) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Sadece resim dosyaları yüklenebilir");
+      return;
+    }
+
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("Dosya boyutu maksimum 50MB olmalıdır");
+      return;
+    }
+
+    setUploadingViewId(viewId);
+    
+    const fileExt = file.name.split(".").pop();
+    const fileName = `${Date.now()}-${viewId}.${fileExt}`;
+    const filePath = `mockups/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("product-mockups")
+      .upload(filePath, file);
+
+    if (uploadError) {
+      toast.error("Görsel yüklenemedi");
+      setUploadingViewId(null);
+      return;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from("product-mockups")
+      .getPublicUrl(filePath);
+
+    await updateViewMutation.mutateAsync({ viewId, updates: { mockup_image_url: publicUrl } });
+    
+    // Update local state
+    setViews(prev => prev.map(v => 
+      v.id === viewId ? { ...v, mockup_image_url: publicUrl } : v
+    ));
+    
+    setUploadingViewId(null);
+  };
+
+  const handleViewUpdate = (viewId: string, field: keyof ProductView, value: number) => {
+    setViews(prev => prev.map(v => 
+      v.id === viewId ? { ...v, [field]: value } : v
+    ));
+  };
+
+  const saveViewChanges = (view: ProductView) => {
+    updateViewMutation.mutate({
+      viewId: view.id,
+      updates: {
+        design_area_top: view.design_area_top,
+        design_area_left: view.design_area_left,
+        design_area_width: view.design_area_width,
+        design_area_height: view.design_area_height,
+      }
+    });
   };
 
   return (
@@ -468,6 +547,7 @@ function ProductItemAdmin({ product, onToggle, onDelete }: ProductItemAdminProps
             <Badge variant={product.is_active ? "default" : "secondary"} className="text-xs">
               {product.is_active ? "Yayında" : "Taslak"}
             </Badge>
+            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </div>
           {product.category && (
             <p className="text-xs text-muted-foreground">{product.category}</p>
@@ -495,30 +575,111 @@ function ProductItemAdmin({ product, onToggle, onDelete }: ProductItemAdminProps
       </div>
       
       {isExpanded && (
-        <div className="border-t p-3">
+        <div className="border-t p-3 space-y-3">
           {isLoadingViews ? (
             <div className="flex justify-center py-4">
               <Loader2 className="w-5 h-5 animate-spin" />
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2">
+            <Accordion type="single" collapsible className="space-y-2">
               {views.map((view) => (
-                <div key={view.id} className="text-center">
-                  {view.mockup_image_url ? (
-                    <img 
-                      src={view.mockup_image_url} 
-                      alt={view.view_name}
-                      className="w-full h-20 object-contain bg-muted rounded"
-                    />
-                  ) : (
-                    <div className="w-full h-20 bg-muted rounded flex items-center justify-center">
-                      <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                <AccordionItem value={view.id} key={view.id} className="border rounded-lg px-3">
+                  <AccordionTrigger className="hover:no-underline py-2">
+                    <div className="flex items-center gap-3">
+                      {view.mockup_image_url ? (
+                        <img src={view.mockup_image_url} alt="" className="w-10 h-10 object-cover rounded" />
+                      ) : (
+                        <div className="w-10 h-10 bg-muted rounded flex items-center justify-center">
+                          <ImageIcon className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                      )}
+                      <span className="text-sm">{view.view_name}</span>
                     </div>
-                  )}
-                  <p className="text-xs mt-1">{view.view_name}</p>
-                </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="space-y-4 pt-2 pb-3">
+                    {/* Image Upload */}
+                    <div className="space-y-2">
+                      <Label className="text-xs">Mockup Görseli (PNG, max 50MB)</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="file"
+                          accept="image/png"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleImageUpload(file, view.id);
+                          }}
+                          disabled={uploadingViewId === view.id}
+                          className="text-xs"
+                        />
+                        {uploadingViewId === view.id && (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Design Area Controls */}
+                    <div className="space-y-3">
+                      <Label className="text-xs font-medium">Baskı Alanı Ayarları</Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Üst: {view.design_area_top}%</Label>
+                          <Slider
+                            value={[view.design_area_top]}
+                            onValueChange={([val]) => handleViewUpdate(view.id, "design_area_top", val)}
+                            min={0}
+                            max={80}
+                            step={1}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Sol: {view.design_area_left}%</Label>
+                          <Slider
+                            value={[view.design_area_left]}
+                            onValueChange={([val]) => handleViewUpdate(view.id, "design_area_left", val)}
+                            min={0}
+                            max={80}
+                            step={1}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Genişlik: {view.design_area_width}%</Label>
+                          <Slider
+                            value={[view.design_area_width]}
+                            onValueChange={([val]) => handleViewUpdate(view.id, "design_area_width", val)}
+                            min={10}
+                            max={100}
+                            step={1}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Yükseklik: {view.design_area_height}%</Label>
+                          <Slider
+                            value={[view.design_area_height]}
+                            onValueChange={([val]) => handleViewUpdate(view.id, "design_area_height", val)}
+                            min={10}
+                            max={100}
+                            step={1}
+                          />
+                        </div>
+                      </div>
+                      <Button 
+                        size="sm" 
+                        onClick={() => saveViewChanges(view)}
+                        disabled={updateViewMutation.isPending}
+                        className="w-full"
+                      >
+                        {updateViewMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        ) : (
+                          <Save className="w-4 h-4 mr-2" />
+                        )}
+                        Değişiklikleri Kaydet
+                      </Button>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
               ))}
-            </div>
+            </Accordion>
           )}
         </div>
       )}
