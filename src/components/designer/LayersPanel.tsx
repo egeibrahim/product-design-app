@@ -1,17 +1,7 @@
-import { Eye, EyeOff, Lock, Unlock, Trash2, GripVertical, Type, Image } from "lucide-react";
+import { Trash2, GripVertical, Type, Image } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-
-interface DesignElement {
-  id: string;
-  type: "text" | "image";
-  content: string;
-  x: number;
-  y: number;
-  fontSize?: number;
-  color?: string;
-  fontFamily?: string;
-}
+import { DesignElement } from "./types";
 
 interface LayersPanelProps {
   elements: DesignElement[];
@@ -42,7 +32,7 @@ export function LayersPanel({
           </div>
         ) : (
           <div className="p-2">
-            {elements.map((element, index) => (
+            {elements.map((element) => (
               <div
                 key={element.id}
                 className={`group flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors ${
@@ -54,9 +44,11 @@ export function LayersPanel({
               >
                 <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab" />
                 
-                <div className="w-6 h-6 rounded bg-muted flex items-center justify-center">
+                <div className="w-6 h-6 rounded bg-muted flex items-center justify-center overflow-hidden">
                   {element.type === "text" ? (
                     <Type className="w-3 h-3 text-muted-foreground" />
+                  ) : element.imageUrl ? (
+                    <img src={element.imageUrl} alt="" className="w-full h-full object-cover" />
                   ) : (
                     <Image className="w-3 h-3 text-muted-foreground" />
                   )}
