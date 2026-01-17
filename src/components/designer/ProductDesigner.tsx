@@ -61,6 +61,23 @@ export function ProductDesigner() {
   const selectedElement = elements.find((el) => el.id === selectedElementId) || null;
   const currentView = productViews.find((v) => v.id === currentViewId);
 
+  // Fetch views on mount for default product
+  useEffect(() => {
+    const fetchInitialViews = async () => {
+      const { data } = await supabase
+        .from("product_views")
+        .select("*")
+        .eq("product_id", currentProductId)
+        .order("view_order");
+      
+      if (data && data.length > 0) {
+        setProductViews(data);
+        setCurrentViewId(data[0].id);
+      }
+    };
+    fetchInitialViews();
+  }, []);
+
   // Load views when product changes
   const handleViewsLoaded = useCallback((views: ProductView[]) => {
     setProductViews(views);
