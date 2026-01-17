@@ -8,9 +8,10 @@ import { supabase } from "@/integrations/supabase/client";
 interface ColorPaletteProps {
   selectedColorId: string | null;
   onColorSelect: (colorId: string, hexCode: string) => void;
+  selectedProductId?: string;
 }
 
-export function ColorPalette({ selectedColorId, onColorSelect }: ColorPaletteProps) {
+export function ColorPalette({ selectedColorId, onColorSelect, selectedProductId }: ColorPaletteProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [colors, setColors] = useState<ProductColor[]>([]);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -18,20 +19,44 @@ export function ColorPalette({ selectedColorId, onColorSelect }: ColorPalettePro
 
   useEffect(() => {
     fetchColors();
-  }, []);
+  }, [selectedProductId]);
 
   useEffect(() => {
     checkScroll();
   }, [colors]);
 
-  // Auto-select first color if none selected
+  // Auto-select first color if none selected or when product changes
   useEffect(() => {
-    if (colors.length > 0 && !selectedColorId) {
+    if (colors.length > 0 && (!selectedColorId || !colors.find(c => c.id === selectedColorId))) {
       onColorSelect(colors[0].id, colors[0].hex_code);
     }
   }, [colors, selectedColorId, onColorSelect]);
 
   const fetchColors = async () => {
+    // If a product is selected, only show colors assigned to that product
+    if (selectedProductId) {
+      const { data: variants, error: variantError } = await supabase
+        .from("product_color_variants")
+        .select("color_id")
+        .eq("product_id", selectedProductId);
+      
+      if (variants && !variantError && variants.length > 0) {
+        const colorIds = variants.map(v => v.color_id);
+        const { data, error } = await supabase
+          .from("product_colors")
+          .select("*")
+          .eq("is_active", true)
+          .in("id", colorIds)
+          .order("sort_order");
+        
+        if (data && !error) {
+          setColors(data);
+          return;
+        }
+      }
+    }
+
+    // Fallback to all active colors
     const { data, error } = await supabase
       .from("product_colors")
       .select("*")

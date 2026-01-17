@@ -447,6 +447,7 @@ export function ProductDesigner() {
               <ColorPalette
                 selectedColorId={selectedColorId}
                 onColorSelect={handleColorSelect}
+                selectedProductId={currentProductId}
               />
             )}
           </div>
