@@ -8,6 +8,7 @@ import { ElementActionsBar } from "./ElementActionsBar";
 import { ViewSwitcher } from "./ViewSwitcher";
 import { UploadPanel } from "./UploadPanel";
 import { MockupPanel } from "./MockupPanel";
+import { ColorPreviewPanel } from "./ColorPreviewPanel";
 import { ImageGallery } from "./ImageGallery";
 import { TextTemplates } from "./TextTemplates";
 import { ProductPanel } from "./ProductPanel";
@@ -55,6 +56,7 @@ export function ProductDesigner() {
   const [colorMockups, setColorMockups] = useState<Record<string, string>>({});
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [designName, setDesignName] = useState("");
+  const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
   
   // Design elements per view
   const [designsByView, setDesignsByView] = useState<Record<string, DesignElement[]>>({});
@@ -591,6 +593,20 @@ export function ProductDesigner() {
             />
           </div>
         </div>
+
+        {/* Right Sidebar - Color Preview Cards (Always Visible) */}
+        <ColorPreviewPanel
+          views={productViews}
+          designsByView={designsByView}
+          productColor={selectedColorHex}
+          selectedColorIds={selectedColorIds}
+          activeColorId={selectedColorId}
+          onColorSelect={handleColorSelect}
+          activeViewId={currentViewId}
+          selectedProductId={currentProductId}
+          isCollapsed={isPreviewCollapsed}
+          onToggleCollapse={() => setIsPreviewCollapsed(!isPreviewCollapsed)}
+        />
       </div>
 
       {/* Save Dialog */}
