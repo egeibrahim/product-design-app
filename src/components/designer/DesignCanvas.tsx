@@ -40,7 +40,11 @@ export function DesignCanvas({
   };
 
   const handleMouseDown = (e: React.MouseEvent, elementId: string) => {
+    // Only start dragging on primary mouse button
+    if (e.button !== 0) return;
+    
     e.stopPropagation();
+    e.preventDefault();
     onSelectElement(elementId);
     setIsDragging(true);
 

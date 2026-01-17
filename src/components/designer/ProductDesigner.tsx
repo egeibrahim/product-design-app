@@ -89,6 +89,7 @@ export function ProductDesigner() {
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [loadDialogOpen, setLoadDialogOpen] = useState(false);
   const [designName, setDesignName] = useState("");
+  const [showLayers, setShowLayers] = useState(true);
 
   const { elements, setElements, resetElements, undo, redo, canUndo, canRedo } = useDesignHistory(initialElements);
   const { savedDesigns, saveDesign, loadDesign, deleteDesign, autoSave, loadAutoSave, clearStorage } = useDesignPersistence();
@@ -108,6 +109,25 @@ export function ProductDesigner() {
       setSelectedElementId(null);
     }
   }, [selectedElementId, setElements]);
+
+  // Backspace/Delete key to remove selected element
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't delete if user is typing in an input
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+      
+      if ((e.key === 'Backspace' || e.key === 'Delete') && selectedElementId) {
+        e.preventDefault();
+        handleDeleteElement(selectedElementId);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedElementId, handleDeleteElement]);
 
   const handleAddText = () => {
     const newElement: DesignElement = {
@@ -312,15 +332,13 @@ export function ProductDesigner() {
           onImageUpload={handleImageUpload}
         />
 
-        {/* Layers Panel (shown when layers tool is active) */}
-        {activeTool === "layers" && (
-          <LayersPanel
-            elements={elements}
-            selectedElement={selectedElementId}
-            onSelectElement={setSelectedElementId}
-            onDeleteElement={handleDeleteElement}
-          />
-        )}
+        {/* Layers Panel - Always visible */}
+        <LayersPanel
+          elements={elements}
+          selectedElement={selectedElementId}
+          onSelectElement={setSelectedElementId}
+          onDeleteElement={handleDeleteElement}
+        />
 
         {/* Canvas */}
         <DesignCanvas
