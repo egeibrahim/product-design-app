@@ -327,14 +327,16 @@ export function DesignCanvas({
             })}
           </div>
 
-          {/* Design Area Border Overlay */}
+          {/* Design Area Border Overlay - striped/dashed */}
           <div 
-            className="absolute border-2 border-dashed border-primary/30 rounded-lg pointer-events-none"
+            className="absolute rounded-lg pointer-events-none"
             style={{
               top: `${designArea.top}%`,
               left: `${designArea.left}%`,
               width: `${designArea.width}%`,
               height: `${designArea.height}%`,
+              border: '2px dashed hsl(var(--primary) / 0.5)',
+              backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 5px, hsl(var(--primary) / 0.05) 5px, hsl(var(--primary) / 0.05) 10px)',
             }}
           />
 

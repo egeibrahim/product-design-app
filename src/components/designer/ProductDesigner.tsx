@@ -12,7 +12,7 @@ import { ImageGallery } from "./ImageGallery";
 import { TextTemplates } from "./TextTemplates";
 import { ProductPanel } from "./ProductPanel";
 import { SavedDesignsPanel } from "./SavedDesignsPanel";
-import { AdminProductPanel } from "./AdminProductPanel";
+import { AdminCatalogPanel } from "./AdminCatalogPanel";
 import { UserMenu } from "./UserMenu";
 import { Button } from "@/components/ui/button";
 import { Download, Save, Undo, Redo, FileImage } from "lucide-react";
@@ -344,7 +344,7 @@ export function ProductDesigner() {
           />
         );
       case "admin":
-        return isAdmin ? <AdminProductPanel /> : null;
+        return isAdmin ? <AdminCatalogPanel /> : null;
       default:
         return null;
     }

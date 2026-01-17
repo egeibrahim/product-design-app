@@ -44,6 +44,42 @@ export type Database = {
         }
         Relationships: []
       }
+      product_color_variants: {
+        Row: {
+          color_id: string
+          created_at: string
+          id: string
+          product_id: string
+        }
+        Insert: {
+          color_id: string
+          created_at?: string
+          id?: string
+          product_id: string
+        }
+        Update: {
+          color_id?: string
+          created_at?: string
+          id?: string
+          product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_color_variants_color_id_fkey"
+            columns: ["color_id"]
+            isOneToOne: false
+            referencedRelation: "product_colors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_color_variants_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_colors: {
         Row: {
           created_at: string
@@ -70,6 +106,45 @@ export type Database = {
           sort_order?: number | null
         }
         Relationships: []
+      }
+      product_view_color_mockups: {
+        Row: {
+          color_id: string
+          created_at: string
+          id: string
+          mockup_image_url: string
+          product_view_id: string
+        }
+        Insert: {
+          color_id: string
+          created_at?: string
+          id?: string
+          mockup_image_url: string
+          product_view_id: string
+        }
+        Update: {
+          color_id?: string
+          created_at?: string
+          id?: string
+          mockup_image_url?: string
+          product_view_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_view_color_mockups_color_id_fkey"
+            columns: ["color_id"]
+            isOneToOne: false
+            referencedRelation: "product_colors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_view_color_mockups_product_view_id_fkey"
+            columns: ["product_view_id"]
+            isOneToOne: false
+            referencedRelation: "product_views"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       product_views: {
         Row: {

@@ -84,13 +84,25 @@ export function UploadPanel({ onImageSelect }: UploadPanelProps) {
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      toast.error("Please sign in to upload images");
+      toast.error("Lütfen giriş yapın");
       return;
     }
 
     setIsLoading(true);
 
     for (const file of Array.from(files)) {
+      // Validate file type - only PNG
+      if (file.type !== "image/png") {
+        toast.error(`${file.name}: Sadece PNG formatı desteklenmektedir`);
+        continue;
+      }
+
+      // Validate file size (max 50MB)
+      if (file.size > 50 * 1024 * 1024) {
+        toast.error(`${file.name}: Dosya boyutu maksimum 50MB olmalıdır`);
+        continue;
+      }
+
       const fileExt = file.name.split(".").pop();
       const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
 
@@ -99,7 +111,7 @@ export function UploadPanel({ onImageSelect }: UploadPanelProps) {
         .upload(fileName, file);
 
       if (uploadError) {
-        toast.error(`Failed to upload ${file.name}`);
+        toast.error(`${file.name} yüklenemedi`);
         continue;
       }
 
@@ -126,7 +138,7 @@ export function UploadPanel({ onImageSelect }: UploadPanelProps) {
       });
 
       if (!dbError) {
-        toast.success(`${file.name} uploaded`);
+        toast.success(`${file.name} yüklendi`);
       }
     }
 
@@ -184,14 +196,14 @@ export function UploadPanel({ onImageSelect }: UploadPanelProps) {
             >
               <div className="flex flex-col items-center gap-2">
                 <Upload className="h-6 w-6" />
-                <span className="text-xs">{isLoading ? "Uploading..." : "Click to upload"}</span>
+                <span className="text-xs">{isLoading ? "Yükleniyor..." : "PNG yüklemek için tıklayın (max 50MB)"}</span>
               </div>
             </Button>
 
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/png"
               multiple
               className="hidden"
               onChange={handleFileChange}
