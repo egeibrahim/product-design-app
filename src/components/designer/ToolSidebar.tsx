@@ -1,4 +1,4 @@
-import { Eye, Image, Type, Package, Bookmark, Upload } from "lucide-react";
+import { Eye, Image, Type, Package, Bookmark, Upload, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ActiveTab } from "./types";
@@ -15,6 +15,7 @@ const tabs = [
   { id: "text" as const, icon: Type, label: "Text" },
   { id: "product" as const, icon: Package, label: "Product" },
   { id: "saved" as const, icon: Bookmark, label: "Saved" },
+  { id: "layers" as const, icon: Layers, label: "Layers" },
 ];
 
 export function ToolSidebar({ activeTab, onTabChange }: ToolSidebarProps) {
