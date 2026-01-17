@@ -1,25 +1,16 @@
-import { Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
+import { Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-
-interface DesignElement {
-  id: string;
-  type: "text" | "image";
-  content: string;
-  x: number;
-  y: number;
-  fontSize?: number;
-  color?: string;
-  fontFamily?: string;
-}
+import { DesignElement } from "./types";
 
 interface PropertyInspectorProps {
   selectedElement: DesignElement | null;
   onUpdateElement: (id: string, updates: Partial<DesignElement>) => void;
+  onDeleteElement: (id: string) => void;
 }
 
 const fonts = [
@@ -44,7 +35,7 @@ const colorPresets = [
   "#6B7280",
 ];
 
-export function PropertyInspector({ selectedElement, onUpdateElement }: PropertyInspectorProps) {
+export function PropertyInspector({ selectedElement, onUpdateElement, onDeleteElement }: PropertyInspectorProps) {
   if (!selectedElement) {
     return (
       <aside className="w-72 bg-inspector-bg border-l border-border flex flex-col">
@@ -62,20 +53,57 @@ export function PropertyInspector({ selectedElement, onUpdateElement }: Property
 
   return (
     <aside className="w-72 bg-inspector-bg border-l border-border flex flex-col animate-fade-in">
-      <div className="h-12 border-b border-border flex items-center px-4">
+      <div className="h-12 border-b border-border flex items-center justify-between px-4">
         <h2 className="text-sm font-semibold">Properties</h2>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-destructive hover:text-destructive"
+          onClick={() => onDeleteElement(selectedElement.id)}
+        >
+          <Trash2 className="w-4 h-4" />
+        </Button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {/* Content Section */}
-        <div className="property-section">
-          <Label className="property-label">Content</Label>
-          <Input
-            value={selectedElement.content}
-            onChange={(e) => onUpdateElement(selectedElement.id, { content: e.target.value })}
-            className="h-9"
-          />
-        </div>
+        {/* Content Section (only for text) */}
+        {selectedElement.type === "text" && (
+          <div className="property-section">
+            <Label className="property-label">Content</Label>
+            <Input
+              value={selectedElement.content}
+              onChange={(e) => onUpdateElement(selectedElement.id, { content: e.target.value })}
+              className="h-9"
+            />
+          </div>
+        )}
+
+        {/* Image Size Section */}
+        {selectedElement.type === "image" && (
+          <div className="property-section">
+            <Label className="property-label">Size</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1">Width</Label>
+                <Input
+                  type="number"
+                  value={selectedElement.width || 100}
+                  onChange={(e) => onUpdateElement(selectedElement.id, { width: parseInt(e.target.value) || 100 })}
+                  className="h-9"
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1">Height</Label>
+                <Input
+                  type="number"
+                  value={selectedElement.height || 100}
+                  onChange={(e) => onUpdateElement(selectedElement.id, { height: parseInt(e.target.value) || 100 })}
+                  className="h-9"
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Typography Section */}
         {selectedElement.type === "text" && (
@@ -148,37 +176,37 @@ export function PropertyInspector({ selectedElement, onUpdateElement }: Property
                 </ToggleGroupItem>
               </ToggleGroup>
             </div>
+
+            {/* Color Section */}
+            <div className="property-section">
+              <Label className="property-label">Color</Label>
+              <div className="grid grid-cols-5 gap-2 mb-3">
+                {colorPresets.map((color) => (
+                  <button
+                    key={color}
+                    className={`color-swatch ${selectedElement.color === color ? "active" : ""}`}
+                    style={{ backgroundColor: color }}
+                    onClick={() => onUpdateElement(selectedElement.id, { color })}
+                  />
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="color"
+                  value={selectedElement.color || "#000000"}
+                  onChange={(e) => onUpdateElement(selectedElement.id, { color: e.target.value })}
+                  className="w-12 h-9 p-1 cursor-pointer"
+                />
+                <Input
+                  value={selectedElement.color || "#000000"}
+                  onChange={(e) => onUpdateElement(selectedElement.id, { color: e.target.value })}
+                  className="flex-1 h-9 font-mono text-sm"
+                  placeholder="#000000"
+                />
+              </div>
+            </div>
           </>
         )}
-
-        {/* Color Section */}
-        <div className="property-section">
-          <Label className="property-label">Color</Label>
-          <div className="grid grid-cols-5 gap-2 mb-3">
-            {colorPresets.map((color) => (
-              <button
-                key={color}
-                className={`color-swatch ${selectedElement.color === color ? "active" : ""}`}
-                style={{ backgroundColor: color }}
-                onClick={() => onUpdateElement(selectedElement.id, { color })}
-              />
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            <Input
-              type="color"
-              value={selectedElement.color || "#000000"}
-              onChange={(e) => onUpdateElement(selectedElement.id, { color: e.target.value })}
-              className="w-12 h-9 p-1 cursor-pointer"
-            />
-            <Input
-              value={selectedElement.color || "#000000"}
-              onChange={(e) => onUpdateElement(selectedElement.id, { color: e.target.value })}
-              className="flex-1 h-9 font-mono text-sm"
-              placeholder="#000000"
-            />
-          </div>
-        </div>
 
         {/* Position Section */}
         <div className="property-section">
