@@ -8,41 +8,34 @@ interface HistoryState {
 export function useDesignHistory(initialElements: DesignElement[]) {
   const [history, setHistory] = useState<HistoryState[]>([{ elements: initialElements }]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const isUndoRedo = useRef(false);
+  const historyRef = useRef(history);
+  const indexRef = useRef(currentIndex);
+
+  // Keep refs in sync
+  useEffect(() => {
+    historyRef.current = history;
+    indexRef.current = currentIndex;
+  }, [history, currentIndex]);
 
   const elements = history[currentIndex]?.elements || initialElements;
 
   const setElements = useCallback((newElements: DesignElement[] | ((prev: DesignElement[]) => DesignElement[])) => {
-    // Skip history recording during undo/redo
-    if (isUndoRedo.current) {
-      isUndoRedo.current = false;
-      return;
+    const currentHistory = historyRef.current;
+    const currentIdx = indexRef.current;
+    const current = currentHistory[currentIdx]?.elements || [];
+    const updated = typeof newElements === "function" ? newElements(current) : newElements;
+    
+    // Remove any future states when making a new change
+    let newHistory = currentHistory.slice(0, currentIdx + 1);
+    newHistory.push({ elements: updated });
+    
+    // Limit history to 50 states
+    if (newHistory.length > 50) {
+      newHistory = newHistory.slice(1);
     }
-
-    setHistory((prevHistory) => {
-      setCurrentIndex((prevIndex) => {
-        const current = prevHistory[prevIndex]?.elements || [];
-        const updated = typeof newElements === "function" ? newElements(current) : newElements;
-        
-        // Remove any future states when making a new change
-        const newHistory = prevHistory.slice(0, prevIndex + 1);
-        newHistory.push({ elements: updated });
-        
-        // Limit history to 50 states
-        if (newHistory.length > 50) {
-          newHistory.shift();
-          // Update history in place
-          setHistory(newHistory);
-          return Math.min(newHistory.length - 1, 49);
-        }
-        
-        // Update history
-        setHistory(newHistory);
-        return prevIndex + 1;
-      });
-      
-      return prevHistory; // Return unchanged, actual update happens in setCurrentIndex
-    });
+    
+    setHistory(newHistory);
+    setCurrentIndex(newHistory.length - 1);
   }, []);
 
   const undo = useCallback(() => {
@@ -56,12 +49,12 @@ export function useDesignHistory(initialElements: DesignElement[]) {
 
   const redo = useCallback(() => {
     setCurrentIndex((prev) => {
-      if (prev < history.length - 1) {
+      if (prev < historyRef.current.length - 1) {
         return prev + 1;
       }
       return prev;
     });
-  }, [history.length]);
+  }, []);
 
   const canUndo = currentIndex > 0;
   const canRedo = currentIndex < history.length - 1;
