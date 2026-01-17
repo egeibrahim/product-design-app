@@ -6,11 +6,11 @@ import { ProductColor } from "./types";
 import { supabase } from "@/integrations/supabase/client";
 
 interface ColorPaletteProps {
-  selectedColor: string;
-  onColorSelect: (hexCode: string) => void;
+  selectedColorId: string | null;
+  onColorSelect: (colorId: string, hexCode: string) => void;
 }
 
-export function ColorPalette({ selectedColor, onColorSelect }: ColorPaletteProps) {
+export function ColorPalette({ selectedColorId, onColorSelect }: ColorPaletteProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [colors, setColors] = useState<ProductColor[]>([]);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -23,6 +23,13 @@ export function ColorPalette({ selectedColor, onColorSelect }: ColorPaletteProps
   useEffect(() => {
     checkScroll();
   }, [colors]);
+
+  // Auto-select first color if none selected
+  useEffect(() => {
+    if (colors.length > 0 && !selectedColorId) {
+      onColorSelect(colors[0].id, colors[0].hex_code);
+    }
+  }, [colors, selectedColorId, onColorSelect]);
 
   const fetchColors = async () => {
     const { data, error } = await supabase
@@ -55,6 +62,14 @@ export function ColorPalette({ selectedColor, onColorSelect }: ColorPaletteProps
     }
   };
 
+  if (colors.length === 0) {
+    return (
+      <div className="flex items-center gap-2 h-full text-sm text-muted-foreground">
+        Henüz renk eklenmemiş
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center gap-2 h-full">
       <Button
@@ -79,12 +94,12 @@ export function ColorPalette({ selectedColor, onColorSelect }: ColorPaletteProps
               <TooltipTrigger asChild>
                 <button
                   className={`w-8 h-8 rounded-full shrink-0 border-2 transition-all hover:scale-110 ${
-                    selectedColor === color.hex_code
-                      ? "border-primary ring-2 ring-primary/50 scale-110"
-                      : "border-border"
+                    selectedColorId === color.id
+                      ? "ring-2 ring-offset-2 ring-foreground scale-110 border-foreground"
+                      : "border-border hover:border-foreground/50"
                   }`}
                   style={{ backgroundColor: color.hex_code }}
-                  onClick={() => onColorSelect(color.hex_code)}
+                  onClick={() => onColorSelect(color.id, color.hex_code)}
                 />
               </TooltipTrigger>
               <TooltipContent side="bottom">
