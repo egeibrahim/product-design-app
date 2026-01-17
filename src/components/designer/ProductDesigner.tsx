@@ -50,6 +50,7 @@ export function ProductDesigner() {
   const [currentViewId, setCurrentViewId] = useState<string>("");
   const [productViews, setProductViews] = useState<ProductView[]>([]);
   const [selectedColorId, setSelectedColorId] = useState<string | null>(null);
+  const [selectedColorIds, setSelectedColorIds] = useState<string[]>([]);
   const [selectedColorHex, setSelectedColorHex] = useState("#FFFFFF");
   const [colorMockups, setColorMockups] = useState<Record<string, string>>({});
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
@@ -154,6 +155,14 @@ export function ProductDesigner() {
     setSelectedColorId(colorId);
     setSelectedColorHex(hexCode);
 
+    // Auto-add to selectedColorIds if not already there
+    setSelectedColorIds(prev => {
+      if (!prev.includes(colorId)) {
+        return [...prev, colorId];
+      }
+      return prev;
+    });
+
     // Try to load color-specific mockup for current view
     if (currentViewId && colorId) {
       const { data } = await supabase
@@ -178,6 +187,27 @@ export function ProductDesigner() {
       }
     }
   }, [currentViewId]);
+
+  // Handle color toggle for multi-selection
+  const handleColorToggle = useCallback((colorId: string, hexCode: string) => {
+    setSelectedColorIds(prev => {
+      if (prev.includes(colorId)) {
+        // Remove - but keep at least one color selected
+        if (prev.length > 1) {
+          const newIds = prev.filter(id => id !== colorId);
+          // If removing the active color, set a new active color
+          if (selectedColorId === colorId && newIds.length > 0) {
+            setSelectedColorId(newIds[0]);
+          }
+          return newIds;
+        }
+        return prev;
+      } else {
+        // Add
+        return [...prev, colorId];
+      }
+    });
+  }, [selectedColorId]);
 
   const handleUpdateElement = useCallback((id: string, updates: Partial<DesignElement>) => {
     setElements((prev) =>
@@ -397,6 +427,11 @@ export function ProductDesigner() {
             views={productViews}
             designsByView={designsByView}
             productColor={selectedColorHex}
+            selectedColorIds={selectedColorIds}
+            activeColorId={selectedColorId}
+            onColorSelect={handleColorSelect}
+            activeViewId={currentViewId}
+            selectedProductId={currentProductId}
           />
         );
       case "upload":
@@ -480,7 +515,9 @@ export function ProductDesigner() {
             ) : (
               <ColorPalette
                 selectedColorId={selectedColorId}
+                selectedColorIds={selectedColorIds}
                 onColorSelect={handleColorSelect}
+                onColorToggle={handleColorToggle}
                 selectedProductId={currentProductId}
               />
             )}
