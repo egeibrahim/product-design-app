@@ -205,12 +205,12 @@ export function ProductDesigner() {
       [currentViewId]: elements
     };
 
-    const { error } = await supabase.from("saved_designs").insert([{
+    const { error } = await supabase.from("saved_designs").insert({
       user_id: user.id,
       product_id: currentProductId,
       name: designName.trim(),
-      design_data: allDesigns as unknown as Record<string, unknown>,
-    }]);
+      design_data: JSON.parse(JSON.stringify(allDesigns)),
+    });
 
     if (!error) {
       toast.success("Design saved successfully");

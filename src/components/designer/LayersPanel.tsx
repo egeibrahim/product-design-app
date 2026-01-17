@@ -1,13 +1,16 @@
-import { Trash2, GripVertical, Type, Image } from "lucide-react";
+import { Trash2, Eye, EyeOff, Lock, Unlock, Type, Image } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DesignElement } from "./types";
+import { AttributesPanel } from "./AttributesPanel";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface LayersPanelProps {
   elements: DesignElement[];
   selectedElement: string | null;
-  onSelectElement: (id: string) => void;
+  onSelectElement: (id: string | null) => void;
   onDeleteElement: (id: string) => void;
+  onUpdateElement: (id: string, updates: Partial<DesignElement>) => void;
 }
 
 export function LayersPanel({
@@ -15,70 +18,110 @@ export function LayersPanel({
   selectedElement,
   onSelectElement,
   onDeleteElement,
+  onUpdateElement,
 }: LayersPanelProps) {
+  const selectedElementData = elements.find((el) => el.id === selectedElement) || null;
+
+  const handleUpdateSelected = (updates: Partial<DesignElement>) => {
+    if (selectedElement) {
+      onUpdateElement(selectedElement, updates);
+    }
+  };
+
   return (
-    <div className="w-64 bg-card border-r border-border flex flex-col animate-fade-in">
-      <div className="h-12 border-b border-border flex items-center justify-between px-4">
-        <h2 className="text-sm font-semibold">Layers</h2>
-        <span className="text-xs text-muted-foreground">{elements.length} items</span>
-      </div>
+    <aside className="w-64 bg-card border-l border-border flex flex-col">
+      <Tabs defaultValue="layers" className="flex-1 flex flex-col">
+        <TabsList className="w-full grid grid-cols-2 m-2 mr-4">
+          <TabsTrigger value="layers" className="text-xs">Layers</TabsTrigger>
+          <TabsTrigger value="attributes" className="text-xs" disabled={!selectedElement}>
+            Attributes
+          </TabsTrigger>
+        </TabsList>
 
-      <ScrollArea className="flex-1">
-        {elements.length === 0 ? (
-          <div className="p-4 text-center">
-            <p className="text-sm text-muted-foreground">
-              No layers yet. Add text or images to get started.
-            </p>
+        <TabsContent value="layers" className="flex-1 m-0">
+          <div className="p-3 border-b border-border">
+            <h3 className="text-sm font-medium">Layers</h3>
+            <p className="text-xs text-muted-foreground">{elements.length} elements</p>
           </div>
-        ) : (
-          <div className="p-2">
-            {elements.map((element) => (
-              <div
-                key={element.id}
-                className={`group flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors ${
-                  selectedElement === element.id
-                    ? "bg-primary/10 border border-primary/30"
-                    : "hover:bg-muted"
-                }`}
-                onClick={() => onSelectElement(element.id)}
-              >
-                <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab" />
-                
-                <div className="w-6 h-6 rounded bg-muted flex items-center justify-center overflow-hidden">
-                  {element.type === "text" ? (
-                    <Type className="w-3 h-3 text-muted-foreground" />
-                  ) : element.imageUrl ? (
-                    <img src={element.imageUrl} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <Image className="w-3 h-3 text-muted-foreground" />
-                  )}
-                </div>
+          <ScrollArea className="flex-1 h-[calc(100vh-200px)]">
+            <div className="p-2 space-y-1">
+              {[...elements].reverse().map((element) => {
+                const isSelected = selectedElement === element.id;
+                const isVisible = element.isVisible !== false;
+                const isLocked = element.isLocked === true;
 
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm truncate">{element.content}</p>
-                  <p className="text-xs text-muted-foreground capitalize">
-                    {element.type}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteElement(element.id);
-                    }}
+                return (
+                  <div
+                    key={element.id}
+                    className={`flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors group ${
+                      isSelected
+                        ? "bg-primary/10 border border-primary/30"
+                        : "hover:bg-accent border border-transparent"
+                    }`}
+                    onClick={() => onSelectElement(element.id)}
                   >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
+                    <div className="w-8 h-8 rounded bg-muted flex items-center justify-center shrink-0">
+                      {element.type === "text" ? (
+                        <Type className="w-4 h-4 text-muted-foreground" />
+                      ) : (
+                        <Image className="w-4 h-4 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{element.content}</p>
+                      <span className="text-xs text-muted-foreground capitalize">{element.type}</span>
+                    </div>
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onUpdateElement(element.id, { isVisible: !isVisible });
+                        }}
+                      >
+                        {isVisible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onUpdateElement(element.id, { isLocked: !isLocked });
+                        }}
+                      >
+                        {isLocked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteElement(element.id);
+                        }}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+              {elements.length === 0 && (
+                <div className="text-center text-muted-foreground py-8">
+                  <p className="text-sm">No layers yet</p>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </ScrollArea>
-    </div>
+              )}
+            </div>
+          </ScrollArea>
+        </TabsContent>
+
+        <TabsContent value="attributes" className="flex-1 m-0 overflow-auto">
+          <AttributesPanel element={selectedElementData} onUpdate={handleUpdateSelected} />
+        </TabsContent>
+      </Tabs>
+    </aside>
   );
 }
