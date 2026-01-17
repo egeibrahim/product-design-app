@@ -406,19 +406,21 @@ export function ProductDesigner() {
           onTabChange={setActiveTab}
         />
 
-        {/* Tab Content Panel */}
-        <aside className="w-64 bg-card border-r border-border overflow-hidden">
-          {renderTabContent()}
+        {/* Tab Content Panel + Layers */}
+        <aside className="w-72 bg-card border-r border-border flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-y-auto">
+            {renderTabContent()}
+          </div>
+          <div className="border-t border-border max-h-[50%] overflow-hidden">
+            <LayersPanel
+              elements={elements}
+              selectedElement={selectedElementId}
+              onSelectElement={setSelectedElementId}
+              onDeleteElement={handleDeleteElement}
+              onUpdateElement={handleUpdateElement}
+            />
+          </div>
         </aside>
-
-        {/* Left Sidebar - Layers + Attributes */}
-        <LayersPanel
-          elements={elements}
-          selectedElement={selectedElementId}
-          onSelectElement={setSelectedElementId}
-          onDeleteElement={handleDeleteElement}
-          onUpdateElement={handleUpdateElement}
-        />
 
         {/* Canvas */}
         <div className="flex-1 flex flex-col">
